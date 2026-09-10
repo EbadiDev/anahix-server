@@ -1,0 +1,43 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  debug: true
+
+postgres:
+  host: "127.0.0.1"
+  port: 5432
+  user: "postgres"
+  password: "postgrespassword"
+  dbname: "anahix_db"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 50
+
+jwt:
+  access_secret: "anahix-super-secure-jwt-secret-key-2026"
+  access_expire_hours: 72
+
+vault:
+  master_key: "anahix-aes-256-gcm-vault-master-secret-key-change-in-prod"
+
+site:
+  name: "Anahix"
+  brand_fa: "آناهیکس"
+  domain: "https://anahix.ir"
+  currency: "TOMAN"
+  support_text: "پشتیبانی تلگرام: @AnahixSupport"
+
+payment:
+  zarinpal:
+    merchant_id: "00000000-0000-0000-0000-000000000000"
+    sandbox: true
+  card_to_card:
+    enabled: true
+    card_number: "6037-9918-0000-0000"
+    card_holder: "آناهیکس"
+    bank_name: "ملی"
+
+sms:
+  driver: "mock"
+  api_key: ""
+  sender_number: "10008000"
