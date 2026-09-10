@@ -27,6 +27,15 @@ type (
 		Instructions string `json:"instructions"`
 	}
 
+	PaymentMethodItem {
+		Id          int64  `json:"id"`
+		Name        string `json:"name"`
+		NameFA      string `json:"name_fa"`
+		Platform    string `json:"platform"`
+		Icon        string `json:"icon"`
+		Description string `json:"description"`
+	}
+
 	// Public Order DTOs
 	CreateOrderRequest {
 		ProductID               string `json:"product_id"`

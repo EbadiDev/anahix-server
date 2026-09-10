@@ -81,3 +81,9 @@ func (h *PublicHandler) SubmitTwoFactor(c *gin.Context) {
 	err := l.SubmitTwoFactor(orderID, token, req.TwoFactorCode)
 	result.HttpResult(c, gin.H{"status": "submitted"}, err)
 }
+
+func (h *PublicHandler) ListPaymentMethods(c *gin.Context) {
+	l := public.NewPaymentLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListPaymentMethods()
+	result.HttpResult(c, resp, err)
+}

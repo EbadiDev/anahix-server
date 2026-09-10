@@ -29,6 +29,15 @@ type ProductDetail struct {
 	Instructions string `json:"instructions"`
 }
 
+type PaymentMethodItem struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	NameFA      string `json:"name_fa"`
+	Platform    string `json:"platform"`
+	Icon        string `json:"icon"`
+	Description string `json:"description"`
+}
+
 type CreateOrderRequest struct {
 	ProductID     string `json:"product_id" binding:"required"`
 	CustomerPhone string `json:"customer_phone" binding:"required"`

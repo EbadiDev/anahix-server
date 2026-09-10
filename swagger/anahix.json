@@ -392,6 +392,38 @@
         ]
       }
     },
+    "/api/v1/payments/": {
+      "get": {
+        "summary": "List available payment methods with Balance as default",
+        "operationId": "ListPaymentMethods",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/PaymentMethodItem"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/public/payments"
+        ]
+      }
+    },
     "/api/v1/products/": {
       "get": {
         "summary": "List active products with stock count",
@@ -768,6 +800,39 @@
         "payment_method",
         "created_at",
         "two_factor_status"
+      ]
+    },
+    "PaymentMethodItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "name_fa": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "PaymentMethodItem",
+      "required": [
+        "id",
+        "name",
+        "name_fa",
+        "platform",
+        "icon",
+        "description"
       ]
     },
     "ProductDetail": {

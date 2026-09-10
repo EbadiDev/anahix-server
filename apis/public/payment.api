@@ -1,0 +1,20 @@
+syntax = "v1"
+
+info (
+	title:   "Public Payment Methods API"
+	desc:    "List available and active payment gateways and methods"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix: /api/v1/payments
+	group:  public/payments
+)
+service anahix {
+	@doc "List available payment methods with Balance as default"
+	@handler ListPaymentMethods
+	get / returns ([]PaymentMethodItem)
+}

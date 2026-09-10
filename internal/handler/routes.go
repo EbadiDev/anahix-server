@@ -32,6 +32,11 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			orders.POST("/:order_id/2fa", pubHandler.SubmitTwoFactor)
 		}
 
+		payments := api.Group("/payments")
+		{
+			payments.GET("", pubHandler.ListPaymentMethods)
+		}
+
 		// Admin Endpoints
 		adminGroup := api.Group("/admin")
 		{

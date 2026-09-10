@@ -243,3 +243,54 @@ func TestModeCOnAccountUpgradeAndTwoFactorHandshake(t *testing.T) {
 		t.Fatalf("Expected OrderCompleted, got %s", finalOrder.Status)
 	}
 }
+
+func TestPaymentMethodsListWithBalanceDefault(t *testing.T) {
+	svcCtx := setupTestContext(t)
+	ctx := context.Background()
+
+	// Seed payment methods
+	payments := []model.Payment{
+		{
+			Id:          -1,
+			Name:        "Balance",
+			NameFA:      "کیف پول / موجودی حساب",
+			Platform:    model.PlatformBalance,
+			Enable:      true,
+			Sort:        0,
+		},
+		{
+			Id:          1,
+			Name:        "ZarinPal",
+			NameFA:      "زرین‌پال",
+			Platform:    model.PlatformZarinpal,
+			Enable:      true,
+			Sort:        1,
+		},
+		{
+			Id:          2,
+			Name:        "DisabledGateway",
+			NameFA:      "درگاه غیرفعال",
+			Platform:    model.PlatformCrypto,
+			Enable:      false,
+			Sort:        2,
+		},
+	}
+	for _, p := range payments {
+		svcCtx.DB.Create(&p)
+	}
+
+	paymentLogic := public.NewPaymentLogic(ctx, svcCtx)
+	methods, err := paymentLogic.ListPaymentMethods()
+	if err != nil {
+		t.Fatalf("Failed to list payment methods: %v", err)
+	}
+
+	if len(methods) != 2 {
+		t.Fatalf("Expected 2 active payment methods, got %d", len(methods))
+	}
+
+	// Verify Balance is the default first method with ID = -1
+	if methods[0].ID != -1 || methods[0].Platform != "balance" {
+		t.Fatalf("Expected first payment method to be Balance (-1), got ID %d, platform %s", methods[0].ID, methods[0].Platform)
+	}
+}

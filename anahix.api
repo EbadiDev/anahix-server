@@ -11,6 +11,7 @@ info (
 import (
 	"apis/public/product.api"
 	"apis/public/order.api"
+	"apis/public/payment.api"
 	"apis/admin/auth.api"
 	"apis/admin/inventory.api"
 	"apis/admin/order.api"

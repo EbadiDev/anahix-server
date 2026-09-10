@@ -34,10 +34,10 @@ const (
 type PaymentMethod string
 
 const (
-	PaymentMethodZarinpal   PaymentMethod = "zarinpal"
-	PaymentMethodCardToCard PaymentMethod = "card_to_card"
-	PaymentMethodCrypto     PaymentMethod = "crypto"
-	PaymentMethodWallet     PaymentMethod = "wallet"
+	PaymentMethodBalance    PaymentMethod = "balance"      // Default wallet balance
+	PaymentMethodZarinpal   PaymentMethod = "zarinpal"     // Zarinpal gateway
+	PaymentMethodCardToCard PaymentMethod = "card_to_card" // Manual card to card transfer
+	PaymentMethodCrypto     PaymentMethod = "crypto"       // USDT / TRX crypto
 )
 
 type Order struct {

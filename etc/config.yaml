@@ -26,18 +26,3 @@ site:
   domain: "https://anahix.ir"
   currency: "TOMAN"
   support_text: "پشتیبانی تلگرام: @AnahixSupport"
-
-payment:
-  zarinpal:
-    merchant_id: "00000000-0000-0000-0000-000000000000"
-    sandbox: true
-  card_to_card:
-    enabled: true
-    card_number: "6037-9918-0000-0000"
-    card_holder: "آناهیکس"
-    bank_name: "ملی"
-
-sms:
-  driver: "mock"
-  api_key: ""
-  sender_number: "10008000"

@@ -176,4 +176,95 @@ func seedInitialData(db *gorm.DB) {
 		}
 		log.Println("🌱 Seeded initial AI products: Gemini 18m (Instant), ChatGPT Plus (Timed), Claude Pro (Instant)")
 	}
+
+	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)
+	var paymentCount int64
+	db.Model(&model.Payment{}).Count(&paymentCount)
+	if paymentCount == 0 {
+		payments := []model.Payment{
+			{
+				Id:          -1,
+				Name:        "Balance",
+				NameFA:      "کیف پول / موجودی حساب",
+				Platform:    model.PlatformBalance,
+				Icon:        "wallet",
+				Description: "پرداخت مستقیم و آنی از طریق شارژ کیف پول حساب کاربری",
+				Config:      "{}",
+				Enable:      true,
+				Sort:        0,
+			},
+			{
+				Id:          1,
+				Name:        "ZarinPal",
+				NameFA:      "درگاه پرداخت زرین‌پال (کارت‌های شتاب)",
+				Platform:    model.PlatformZarinpal,
+				Icon:        "zarinpal",
+				Description: "پرداخت امن اینترنتی با تمامی کارت‌های بانکی عضو شبکه شتاب",
+				Config:      `{"merchant_id":"00000000-0000-0000-0000-000000000000","sandbox":true}`,
+				Enable:      true,
+				Sort:        1,
+			},
+			{
+				Id:          2,
+				Name:        "CardToCard",
+				NameFA:      "کارت به کارت (واریز مستقیم بانکی)",
+				Platform:    model.PlatformCardToCard,
+				Icon:        "credit-card",
+				Description: "انتقال وجه کارت به کارت و ارسال رسید و شماره پیگیری برای تایید اپراتور",
+				Config:      `{"card_number":"6037-9918-0000-0000","card_holder":"آناهیکس","bank_name":"بانک ملی"}`,
+				Enable:      true,
+				Sort:        2,
+			},
+			{
+				Id:          3,
+				Name:        "Cryptocurrency",
+				NameFA:      "ارز دیجیتال (تتر USDT / ترون TRX)",
+				Platform:    model.PlatformCrypto,
+				Icon:        "bitcoin",
+				Description: "پرداخت ناشناس و بین‌المللی با تتر شبکه TRC20 یا تون",
+				Config:      `{"network":"TRC20","wallet_address":""}`,
+				Enable:      false,
+				Sort:        3,
+			},
+		}
+
+		for _, pay := range payments {
+			db.Create(&pay)
+		}
+		log.Println("🌱 Seeded payment methods with Balance (id: -1) as default, ZarinPal, CardToCard, and Crypto")
+	}
+
+	// Seed System Settings (SMS Gateway & Notification configurations in DB)
+	var sysCount int64
+	db.Model(&model.SystemSetting{}).Where("category = ?", "sms").Count(&sysCount)
+	if sysCount == 0 {
+		smsSettings := []model.SystemSetting{
+			{
+				Category: "sms",
+				Key:      "sms_provider",
+				Value:    "mock",
+				Type:     "string",
+				Desc:     "سرویس‌دهنده پیامک (mock, kavenegar, farazsms, ghasedak)",
+			},
+			{
+				Category: "sms",
+				Key:      "sms_config",
+				Value:    `{"api_key":"","sender_number":"10008000"}`,
+				Type:     "json",
+				Desc:     "تنظیمات و کلیدهای دسترسی پنل پیامکی",
+			},
+			{
+				Category: "sms",
+				Key:      "sms_enabled",
+				Value:    "true",
+				Type:     "bool",
+				Desc:     "فعال بودن ارسال پیامک وضعیت سفارش و کد تایید",
+			},
+		}
+
+		for _, s := range smsSettings {
+			db.Create(&s)
+		}
+		log.Println("🌱 Seeded system SMS configurations into database (category: 'sms')")
+	}
 }

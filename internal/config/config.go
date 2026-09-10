@@ -12,8 +12,6 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	Vault    VaultConfig    `yaml:"vault"`
 	Site     SiteConfig     `yaml:"site"`
-	Payment  PaymentConfig  `yaml:"payment"`
-	SMS      SMSConfig      `yaml:"sms"`
 }
 
 type ServerConfig struct {
@@ -48,29 +46,6 @@ type SiteConfig struct {
 	Domain      string `yaml:"domain"`
 	Currency    string `yaml:"currency"`
 	SupportText string `yaml:"support_text"`
-}
-
-type PaymentConfig struct {
-	Zarinpal ZarinpalConfig   `yaml:"zarinpal"`
-	CardPay  CardToCardConfig `yaml:"card_to_card"`
-}
-
-type ZarinpalConfig struct {
-	MerchantID string `yaml:"merchant_id"`
-	Sandbox    bool   `yaml:"sandbox"`
-}
-
-type CardToCardConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	CardNumber string `yaml:"card_number"`
-	CardHolder string `yaml:"card_holder"`
-	BankName   string `yaml:"bank_name"`
-}
-
-type SMSConfig struct {
-	Driver       string `yaml:"driver"` // "mock" or "kavenegar"
-	APIKey       string `yaml:"api_key"`
-	SenderNumber string `yaml:"sender_number"`
 }
 
 func LoadConfig(path string) (*Config, error) {
