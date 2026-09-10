@@ -1,0 +1,28 @@
+syntax = "v1"
+
+info (
+	title:   "Public Orders API"
+	desc:    "Order creation, tracking, and live 2FA code submission"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix: /api/v1/orders
+	group:  public/orders
+)
+service anahix {
+	@doc "Create checkout order and reserve stock"
+	@handler CreateOrder
+	post / (CreateOrderRequest) returns (CreateOrderResponse)
+
+	@doc "Get order tracking detail and fulfilled goods"
+	@handler GetOrderDetail
+	get /:order_id returns (OrderDetailResponse)
+
+	@doc "Submit customer 2FA OTP code"
+	@handler SubmitTwoFactor
+	post /:order_id/2fa (SubmitTwoFactorRequest)
+}

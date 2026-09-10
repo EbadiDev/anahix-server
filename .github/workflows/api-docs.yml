@@ -1,0 +1,79 @@
+name: API Documentation & CI Review
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Verify Dependencies
+        run: |
+          go mod verify
+
+      - name: Run Test Suite (Review Check)
+        run: |
+          go test -v -race ./...
+
+      - name: Install goctl
+        run: |
+          curl -fsSL https://github.com/zeromicro/go-zero/releases/download/tools%2Fgoctl%2Fv1.7.2/goctl-v1.7.2-linux-amd64.tar.gz -o /tmp/goctl.tar.gz
+          sudo tar -xzf /tmp/goctl.tar.gz -C /usr/local/bin
+          sudo chmod +x /usr/local/bin/goctl
+          goctl --version
+
+      - name: Install goctl-swagger
+        run: |
+          curl -fsSL https://github.com/tensionc/goctl-swagger/releases/download/v1.0.1/goctl-swagger-v1.0.1-linux-amd64.tar.gz -o /tmp/goctl-swagger.tar.gz
+          sudo tar -xzf /tmp/goctl-swagger.tar.gz -C /usr/local/bin
+          sudo chmod +x /usr/local/bin/goctl-swagger
+
+      - name: Generate Swagger Documentation
+        run: |
+          make swagger-gen
+
+      - name: Verify Swagger Files
+        run: |
+          test -f ./swagger/anahix.json
+          test -f ./swagger/index.html
+          echo "Swagger files successfully generated."
+
+      - name: Auto-commit and Push Updated Docs (on push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add swagger/
+          if [ -n "$(git status --porcelain swagger/)" ]; then
+            echo "Changes detected in Swagger documentation. Committing and pushing..."
+            git commit -m "docs(api): auto-update swagger documentation [skip ci]"
+            git push
+          else
+            echo "Swagger documentation is already up to date. No changes to commit."
+          fi
+
+      - name: Upload Swagger Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anahix-swagger-docs
+          path: swagger/

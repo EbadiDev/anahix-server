@@ -1,0 +1,24 @@
+syntax = "v1"
+
+info (
+	title:   "Public Products API"
+	desc:    "Storefront product catalog and details"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix: /api/v1/products
+	group:  public/products
+)
+service anahix {
+	@doc "List active products with stock count"
+	@handler ListProducts
+	get / returns ([]ProductListItem)
+
+	@doc "Get product detail by slug"
+	@handler GetProductDetail
+	get /:slug returns (ProductDetail)
+}

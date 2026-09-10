@@ -1,0 +1,21 @@
+syntax = "v1"
+
+info (
+	title:   "Admin Inventory API"
+	desc:    "Bulk stock encrypted import"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix:     /api/v1/admin/inventory
+	group:      admin/inventory
+	middleware: AdminAuthMiddleware
+)
+service anahix {
+	@doc "Bulk import encrypted links and credentials"
+	@handler BulkImportInventory
+	post /bulk-import (BulkImportInventoryRequest) returns (BulkImportInventoryResponse)
+}

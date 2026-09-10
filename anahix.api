@@ -1,0 +1,18 @@
+syntax = "v1"
+
+info (
+	title:   "Anahix API"
+	desc:    "API specification for Anahix (آناهیکس) - Iranian AI Accounts & Digital Goods Reseller Platform"
+	author:  "EbadiDev"
+	email:   "support@anahix.ir"
+	version: "1.0.0"
+)
+
+import (
+	"apis/public/product.api"
+	"apis/public/order.api"
+	"apis/admin/auth.api"
+	"apis/admin/inventory.api"
+	"apis/admin/order.api"
+	"apis/admin/product.api"
+)

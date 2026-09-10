@@ -1,0 +1,33 @@
+syntax = "v1"
+
+info (
+	title:   "Admin Order Desk API"
+	desc:    "Operator order queue, 2FA prompt request, and order completion"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix:     /api/v1/admin/orders
+	group:      admin/orders
+	middleware: AdminAuthMiddleware
+)
+service anahix {
+	@doc "List queue orders"
+	@handler ListQueueOrders
+	get / returns ([]OrderDetailResponse)
+
+	@doc "Get order detail with decrypted credentials"
+	@handler GetAdminOrderDetail
+	get /:order_id returns (OrderDetailResponse)
+
+	@doc "Request 2FA code from customer"
+	@handler RequestTwoFactor
+	post /:order_id/2fa-request (RequestTwoFactorRequest)
+
+	@doc "Complete order and zeroize customer credentials"
+	@handler CompleteOrder
+	post /:order_id/complete (CompleteOrderRequest)
+}

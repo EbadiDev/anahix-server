@@ -1,0 +1,21 @@
+syntax = "v1"
+
+info (
+	title:   "Admin Products API"
+	desc:    "Product catalog management"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix:     /api/v1/admin/products
+	group:      admin/products
+	middleware: AdminAuthMiddleware
+)
+service anahix {
+	@doc "Create digital product"
+	@handler CreateProduct
+	post / (CreateProductRequest) returns (ProductDetail)
+}

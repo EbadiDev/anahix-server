@@ -1,0 +1,130 @@
+syntax = "v1"
+
+type (
+	// Public Product DTOs
+	ProductListItem {
+		ID             string  `json:"id"`
+		Title          string  `json:"title"`
+		TitleFA        string  `json:"title_fa"`
+		Slug           string  `json:"slug"`
+		Category       string  `json:"category"`
+		DeliveryType   string  `json:"delivery_type"`
+		PriceToman     int64   `json:"price_toman"`
+		BaseCostUSD    float64 `json:"base_cost_usd,omitempty"`
+		SLAMinMinutes  int     `json:"sla_min_minutes"`
+		SLAMaxMinutes  int     `json:"sla_max_minutes"`
+		SLADisplayText string  `json:"sla_display_text"`
+		OperatingHours string  `json:"operating_hours"`
+		IconURL        string  `json:"icon_url"`
+		BannerURL      string  `json:"banner_url"`
+		AvailableStock int64   `json:"available_stock"`
+		IsActive       bool    `json:"is_active"`
+	}
+
+	ProductDetail {
+		ProductListItem
+		Description  string `json:"description"`
+		Instructions string `json:"instructions"`
+	}
+
+	// Public Order DTOs
+	CreateOrderRequest {
+		ProductID               string `json:"product_id"`
+		CustomerPhone           string `json:"customer_phone"`
+		CustomerEmail           string `json:"customer_email,optional"`
+		PaymentMethod           string `json:"payment_method"`
+		CustomerAccountEmail    string `json:"customer_account_email,optional"`
+		CustomerAccountPassword string `json:"customer_account_password,optional"`
+		CustomerNotes           string `json:"customer_notes,optional"`
+	}
+
+	CreateOrderResponse {
+		OrderID          string `json:"order_id"`
+		OrderNumber      string `json:"order_number"`
+		AccessToken      string `json:"access_token"`
+		TotalAmountToman int64  `json:"total_amount_toman"`
+		PaymentMethod    string `json:"payment_method"`
+		PaymentURL       string `json:"payment_url"`
+		ExpiresAt        string `json:"expires_at"`
+	}
+
+	DeliveredItemDTO {
+		ProductTitle string `json:"product_title"`
+		ProductSlug  string `json:"product_slug"`
+		DeliveryType string `json:"delivery_type"`
+		Payload      string `json:"payload"`
+		Instructions string `json:"instructions"`
+	}
+
+	OrderDetailResponse {
+		OrderID              string             `json:"order_id"`
+		OrderNumber          string             `json:"order_number"`
+		Status               string             `json:"status"`
+		DeliveryType         string             `json:"delivery_type"`
+		TotalAmountToman     int64              `json:"total_amount_toman"`
+		CustomerPhone        string             `json:"customer_phone"`
+		PaymentMethod        string             `json:"payment_method"`
+		CreatedAt            string             `json:"created_at"`
+		PaidAt               string             `json:"paid_at,optional"`
+		CompletedAt          string             `json:"completed_at,optional"`
+		DeliveredItems       []DeliveredItemDTO `json:"delivered_items,optional"`
+		TwoFactorPrompt      string             `json:"two_factor_prompt,optional"`
+		TwoFactorStatus      string             `json:"two_factor_status"`
+		TwoFactorRequestedAt string             `json:"two_factor_requested_at,optional"`
+	}
+
+	SubmitTwoFactorRequest {
+		TwoFactorCode string `json:"two_factor_code"`
+	}
+
+	// Admin DTOs
+	AdminLoginRequest {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	AdminLoginResponse {
+		Token    string `json:"token"`
+		Username string `json:"username"`
+		FullName string `json:"full_name"`
+		Role     string `json:"role"`
+	}
+
+	BulkImportInventoryRequest {
+		ProductID string   `json:"product_id"`
+		ItemType  string   `json:"item_type"`
+		Items     []string `json:"items"`
+		BatchTag  string   `json:"batch_tag,optional"`
+	}
+
+	BulkImportInventoryResponse {
+		ImportedCount int `json:"imported_count"`
+	}
+
+	RequestTwoFactorRequest {
+		PromptMessage string `json:"prompt_message"`
+	}
+
+	CompleteOrderRequest {
+		OperatorNotes string `json:"operator_notes,optional"`
+	}
+
+	CreateProductRequest {
+		Title          string  `json:"title"`
+		TitleFA        string  `json:"title_fa"`
+		Slug           string  `json:"slug"`
+		Description    string  `json:"description,optional"`
+		Category       string  `json:"category"`
+		DeliveryType   string  `json:"delivery_type"`
+		SLAMinMinutes  int     `json:"sla_min_minutes,optional"`
+		SLAMaxMinutes  int     `json:"sla_max_minutes,optional"`
+		SLADisplayText string  `json:"sla_display_text,optional"`
+		OperatingHours string  `json:"operating_hours,optional"`
+		BaseCostUSD    float64 `json:"base_cost_usd,optional"`
+		PriceToman     int64   `json:"price_toman"`
+		IsActive       bool    `json:"is_active,optional"`
+		Instructions   string  `json:"instructions,optional"`
+		IconURL        string  `json:"icon_url,optional"`
+		BannerURL      string  `json:"banner_url,optional"`
+	}
+)

@@ -1,0 +1,20 @@
+syntax = "v1"
+
+info (
+	title:   "Admin Authentication API"
+	desc:    "Admin operator login and JWT token issuance"
+	author:  "EbadiDev"
+	version: "1.0.0"
+)
+
+import "../types.api"
+
+@server (
+	prefix: /api/v1/admin/auth
+	group:  admin/auth
+)
+service anahix {
+	@doc "Admin Login"
+	@handler AdminLogin
+	post /login (AdminLoginRequest) returns (AdminLoginResponse)
+}

@@ -1,0 +1,970 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "",
+    "version": ""
+  },
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/auth/login": {
+      "post": {
+        "summary": "Admin Login",
+        "operationId": "AdminLogin",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/AdminLoginResponse"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Admin DTOs",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminLoginRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/admin/auth"
+        ]
+      }
+    },
+    "/api/v1/admin/inventory/bulk-import": {
+      "post": {
+        "summary": "Bulk import encrypted links and credentials",
+        "operationId": "BulkImportInventory",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/BulkImportInventoryResponse"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BulkImportInventoryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/admin/inventory"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/": {
+      "get": {
+        "summary": "List queue orders",
+        "operationId": "ListQueueOrders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/OrderDetailResponse"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/admin/orders"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{order_id}": {
+      "get": {
+        "summary": "Get order detail with decrypted credentials",
+        "operationId": "GetAdminOrderDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/OrderDetailResponse"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/admin/orders"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{order_id}/2fa-request": {
+      "post": {
+        "summary": "Request 2FA code from customer",
+        "operationId": "RequestTwoFactor",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {}
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RequestTwoFactorRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/admin/orders"
+        ]
+      }
+    },
+    "/api/v1/admin/orders/{order_id}/complete": {
+      "post": {
+        "summary": "Complete order and zeroize customer credentials",
+        "operationId": "CompleteOrder",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {}
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CompleteOrderRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/admin/orders"
+        ]
+      }
+    },
+    "/api/v1/admin/products/": {
+      "post": {
+        "summary": "Create digital product",
+        "operationId": "CreateProduct",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/ProductDetail"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateProductRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/admin/products"
+        ]
+      }
+    },
+    "/api/v1/orders/": {
+      "post": {
+        "summary": "Create checkout order and reserve stock",
+        "operationId": "CreateOrder",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/CreateOrderResponse"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Public Order DTOs",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateOrderRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/public/orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{order_id}": {
+      "get": {
+        "summary": "Get order tracking detail and fulfilled goods",
+        "operationId": "GetOrderDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/OrderDetailResponse"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/public/orders"
+        ]
+      }
+    },
+    "/api/v1/orders/{order_id}/2fa": {
+      "post": {
+        "summary": "Submit customer 2FA OTP code",
+        "operationId": "SubmitTwoFactor",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {}
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SubmitTwoFactorRequest"
+            }
+          }
+        ],
+        "tags": [
+          "anahix/public/orders"
+        ]
+      }
+    },
+    "/api/v1/products/": {
+      "get": {
+        "summary": "List active products with stock count",
+        "operationId": "ListProducts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ProductListItem"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/public/products"
+        ]
+      }
+    },
+    "/api/v1/products/{slug}": {
+      "get": {
+        "summary": "Get product detail by slug",
+        "operationId": "GetProductDetail",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/ProductDetail"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "tags": [
+          "anahix/public/products"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AdminLoginRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "title": "AdminLoginRequest",
+      "required": [
+        "username",
+        "password"
+      ]
+    },
+    "AdminLoginResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "full_name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "title": "AdminLoginResponse",
+      "required": [
+        "token",
+        "username",
+        "full_name",
+        "role"
+      ]
+    },
+    "BulkImportInventoryRequest": {
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "string"
+        },
+        "item_type": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "batch_tag": {
+          "type": "string"
+        }
+      },
+      "title": "BulkImportInventoryRequest",
+      "required": [
+        "product_id",
+        "item_type",
+        "items"
+      ]
+    },
+    "BulkImportInventoryResponse": {
+      "type": "object",
+      "properties": {
+        "imported_count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "BulkImportInventoryResponse",
+      "required": [
+        "imported_count"
+      ]
+    },
+    "CompleteOrderRequest": {
+      "type": "object",
+      "properties": {
+        "operator_notes": {
+          "type": "string"
+        }
+      },
+      "title": "CompleteOrderRequest"
+    },
+    "CreateOrderRequest": {
+      "type": "object",
+      "properties": {
+        "product_id": {
+          "type": "string"
+        },
+        "customer_phone": {
+          "type": "string"
+        },
+        "customer_email": {
+          "type": "string"
+        },
+        "payment_method": {
+          "type": "string"
+        },
+        "customer_account_email": {
+          "type": "string"
+        },
+        "customer_account_password": {
+          "type": "string"
+        },
+        "customer_notes": {
+          "type": "string"
+        }
+      },
+      "title": "CreateOrderRequest",
+      "required": [
+        "product_id",
+        "customer_phone",
+        "payment_method"
+      ]
+    },
+    "CreateOrderResponse": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string"
+        },
+        "order_number": {
+          "type": "string"
+        },
+        "access_token": {
+          "type": "string"
+        },
+        "total_amount_toman": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "payment_method": {
+          "type": "string"
+        },
+        "payment_url": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        }
+      },
+      "title": "CreateOrderResponse",
+      "required": [
+        "order_id",
+        "order_number",
+        "access_token",
+        "total_amount_toman",
+        "payment_method",
+        "payment_url",
+        "expires_at"
+      ]
+    },
+    "CreateProductRequest": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "title_fa": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "delivery_type": {
+          "type": "string"
+        },
+        "sla_min_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_max_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_display_text": {
+          "type": "string"
+        },
+        "operating_hours": {
+          "type": "string"
+        },
+        "base_cost_usd": {
+          "type": "number",
+          "format": "double"
+        },
+        "price_toman": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "icon_url": {
+          "type": "string"
+        },
+        "banner_url": {
+          "type": "string"
+        }
+      },
+      "title": "CreateProductRequest",
+      "required": [
+        "title",
+        "title_fa",
+        "slug",
+        "category",
+        "delivery_type",
+        "price_toman"
+      ]
+    },
+    "DeliveredItemDTO": {
+      "type": "object",
+      "properties": {
+        "product_title": {
+          "type": "string"
+        },
+        "product_slug": {
+          "type": "string"
+        },
+        "delivery_type": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        }
+      },
+      "title": "DeliveredItemDTO",
+      "required": [
+        "product_title",
+        "product_slug",
+        "delivery_type",
+        "payload",
+        "instructions"
+      ]
+    },
+    "OrderDetailResponse": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "type": "string"
+        },
+        "order_number": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "delivery_type": {
+          "type": "string"
+        },
+        "total_amount_toman": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "customer_phone": {
+          "type": "string"
+        },
+        "payment_method": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "paid_at": {
+          "type": "string"
+        },
+        "completed_at": {
+          "type": "string"
+        },
+        "delivered_items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DeliveredItemDTO"
+          }
+        },
+        "two_factor_prompt": {
+          "type": "string"
+        },
+        "two_factor_status": {
+          "type": "string"
+        },
+        "two_factor_requested_at": {
+          "type": "string"
+        }
+      },
+      "title": "OrderDetailResponse",
+      "required": [
+        "order_id",
+        "order_number",
+        "status",
+        "delivery_type",
+        "total_amount_toman",
+        "customer_phone",
+        "payment_method",
+        "created_at",
+        "two_factor_status"
+      ]
+    },
+    "ProductDetail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "title_fa": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "delivery_type": {
+          "type": "string"
+        },
+        "price_toman": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "base_cost_usd": {
+          "type": "number",
+          "format": "double"
+        },
+        "sla_min_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_max_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_display_text": {
+          "type": "string"
+        },
+        "operating_hours": {
+          "type": "string"
+        },
+        "icon_url": {
+          "type": "string"
+        },
+        "banner_url": {
+          "type": "string"
+        },
+        "available_stock": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        }
+      },
+      "title": "ProductDetail",
+      "required": [
+        "description",
+        "instructions"
+      ]
+    },
+    "ProductListItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "title_fa": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "delivery_type": {
+          "type": "string"
+        },
+        "price_toman": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "base_cost_usd": {
+          "type": "number",
+          "format": "double"
+        },
+        "sla_min_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_max_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_display_text": {
+          "type": "string"
+        },
+        "operating_hours": {
+          "type": "string"
+        },
+        "icon_url": {
+          "type": "string"
+        },
+        "banner_url": {
+          "type": "string"
+        },
+        "available_stock": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "is_active": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      },
+      "title": "ProductListItem",
+      "required": [
+        "id",
+        "title",
+        "title_fa",
+        "slug",
+        "category",
+        "delivery_type",
+        "price_toman",
+        "sla_min_minutes",
+        "sla_max_minutes",
+        "sla_display_text",
+        "operating_hours",
+        "icon_url",
+        "banner_url",
+        "available_stock",
+        "is_active"
+      ]
+    },
+    "RequestTwoFactorRequest": {
+      "type": "object",
+      "properties": {
+        "prompt_message": {
+          "type": "string"
+        }
+      },
+      "title": "RequestTwoFactorRequest",
+      "required": [
+        "prompt_message"
+      ]
+    },
+    "Response": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "description": "Status code"
+        },
+        "msg": {
+          "type": "string",
+          "description": "Message"
+        },
+        "data": {
+          "type": "object",
+          "description": "Data"
+        }
+      }
+    },
+    "SubmitTwoFactorRequest": {
+      "type": "object",
+      "properties": {
+        "two_factor_code": {
+          "type": "string"
+        }
+      },
+      "title": "SubmitTwoFactorRequest",
+      "required": [
+        "two_factor_code"
+      ]
+    }
+  },
+  "securityDefinitions": {
+    "apiKey": {
+      "type": "apiKey",
+      "description": "Enter JWT Bearer token **_only_**",
+      "name": "Authorization",
+      "in": "header"
+    }
+  }
+}
