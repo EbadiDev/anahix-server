@@ -23,6 +23,15 @@ tidy:
 clean:
 	@rm -rf bin/
 
+# Development Environment (Postgres + Redis)
+dev-env-up:
+	@echo "🐳 Starting PostgreSQL and Redis containers..."
+	docker compose -f docker-compose.dev.yml up -d
+
+dev-env-down:
+	@echo "🛑 Stopping PostgreSQL and Redis containers..."
+	docker compose -f docker-compose.dev.yml down
+
 # Swagger/OpenAPI documentation (ArchNet pattern)
 swagger-tools:
 	@mkdir -p $(GOPATH)/bin

@@ -66,7 +66,23 @@ func AutoMigrate(db *gorm.DB) error {
 	)
 }
 
-// InitTestDB initializes an isolated SQLite database for unit and integration testing
+// InitLocalSQLite initializes a persistent file-based SQLite database for local development
+func InitLocalSQLite(filePath string) (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open(filePath), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := AutoMigrate(db); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+// InitTestDB initializes an isolated in-memory SQLite database for unit testing
 func InitTestDB() (*gorm.DB, error) {
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),

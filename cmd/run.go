@@ -46,12 +46,12 @@ func runServer() {
 	// Initialize DB (Postgres connection with fallback to SQLite for local development if Postgres not reachable)
 	db, err := orm.InitPostgres(cfg.Postgres, cfg.Server.Debug)
 	if err != nil {
-		log.Printf("⚠️ Postgres connection failed (%v). Falling back to local SQLite 'anahix.db' for development...", err)
-		testDB, testErr := orm.InitTestDB()
-		if testErr != nil {
-			log.Fatalf("Fatal: Database initialization failed: %v", testErr)
+		log.Printf("⚠️ Postgres connection failed (%v). Falling back to persistent local SQLite 'anahix.db' for development...", err)
+		localDB, localErr := orm.InitLocalSQLite("anahix.db")
+		if localErr != nil {
+			log.Fatalf("Fatal: Database initialization failed: %v", localErr)
 		}
-		db = testDB
+		db = localDB
 	} else {
 		// Run auto migrations on Postgres
 		if err := orm.AutoMigrate(db); err != nil {
