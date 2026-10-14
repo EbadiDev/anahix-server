@@ -9,7 +9,7 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
