@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EbadiDev/anahix-server/internal/logic/audit"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -64,7 +65,19 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	txErr := l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
 		var reservedItemID *uuid.UUID
 
-		if product.DeliveryType == model.DeliveryInstant {
+		// Determine effective delivery strategy
+		effectiveStrategy := product.DeliveryStrategy
+		if effectiveStrategy == "" || effectiveStrategy == "auto" {
+			if product.ExternalProductID > 0 {
+				effectiveStrategy = "third_party_instant"
+			} else if product.DeliveryType == model.DeliveryInstant {
+				effectiveStrategy = "local_inventory"
+			} else {
+				effectiveStrategy = "manual_operator"
+			}
+		}
+
+		if effectiveStrategy == "local_inventory" {
 			// Find and lock 1 available inventory item using SELECT ... FOR UPDATE SKIP LOCKED
 			var item model.InventoryItem
 			err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
@@ -86,7 +99,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 
 		// Encrypt customer account credentials if this is a timed on-account upgrade
 		var encryptedCreds string
-		if product.DeliveryType == model.DeliveryManualTimed && req.CustomerAccountEmail != "" {
+		if (product.DeliveryType == model.DeliveryManualTimed || effectiveStrategy == "manual_operator") && req.CustomerAccountEmail != "" {
 			plainCreds := fmt.Sprintf("Email: %s | Pass: %s | Notes: %s",
 				req.CustomerAccountEmail, req.CustomerAccountPassword, req.CustomerNotes)
 			enc, encErr := l.svcCtx.Vault.Encrypt(plainCreds)
@@ -124,6 +137,38 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			},
 		}
 
+		// Instant balance payment & automatic fulfillment
+		if req.PaymentMethod == string(model.PaymentMethodBalance) {
+			now := time.Now()
+			order.PaidAt = &now
+
+			if effectiveStrategy == "third_party_instant" && product.ExternalProductID > 0 {
+				var apiKeySetting model.SystemSetting
+				_ = tx.Where("key IN (?, ?)", "provider_api_key", "insightx_api_key").First(&apiKeySetting).Error
+				if apiKeySetting.Value != "" {
+					orderRes, oErr := l.svcCtx.FulfillmentProvider.CreateOrder(apiKeySetting.Value, orderID.String(), product.ExternalProductID, 1)
+					if oErr == nil && orderRes != nil && len(orderRes.Codes) > 0 {
+						order.Status = model.OrderCompleted
+						order.CompletedAt = &now
+						code := orderRes.Codes[0]
+						order.Items[0].DeliveredPayload = code
+						order.Items[0].Instructions = "کد / لینک فعال‌سازی آنی شما: " + code
+					} else {
+						// Fallback gracefully to operator queue
+						order.Status = model.OrderPaid
+						order.OperatorNotes = "صدور خودکار با خطا مواجه شد. جهت تحویل دستی به میز اپراتور ارجاع گردید."
+					}
+				} else {
+					order.Status = model.OrderPaid
+				}
+			} else if effectiveStrategy == "local_inventory" && reservedItemID != nil {
+				order.Status = model.OrderCompleted
+				order.CompletedAt = &now
+			} else {
+				order.Status = model.OrderPaid
+			}
+		}
+
 		if err := tx.Create(&order).Error; err != nil {
 			return err
 		}
@@ -136,6 +181,23 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 				return err
 			}
 		}
+
+		// Record financial transaction log
+		txnStatus := model.TxStatusPending
+		if order.PaidAt != nil {
+			txnStatus = model.TxStatusSuccess
+		}
+		_ = audit.RecordTransaction(l.ctx, tx, &model.Transaction{
+			OrderID:         &order.ID,
+			OrderType:       model.TxTypeStoreOrder,
+			CustomerPhone:   order.CustomerPhone,
+			CustomerEmail:   order.CustomerEmail,
+			AmountToman:     order.TotalAmountToman,
+			PaymentPlatform: model.PaymentPlatform(order.PaymentMethod),
+			PaymentRefID:    order.PaymentRefID,
+			Status:          txnStatus,
+			Description:     fmt.Sprintf("سفارش فروشگاهی #%s (%s)", order.OrderNumber, product.TitleFA),
+		})
 
 		createdOrder = order
 		return nil
@@ -158,19 +220,25 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	}, nil
 }
 
-func (l *OrderLogic) GetOrderDetail(orderIDStr string, token string) (*types.OrderDetailResponse, error) {
-	orderUUID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		return nil, xerr.NewErrCode(xerr.InvalidParams)
+func (l *OrderLogic) GetOrderDetail(orderIDOrNo string, token string) (*types.OrderDetailResponse, error) {
+	var order model.Order
+	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items")
+
+	if orderUUID, err := uuid.Parse(orderIDOrNo); err == nil {
+		query = query.Where("id = ?", orderUUID)
+	} else {
+		query = query.Where("order_number = ?", orderIDOrNo)
 	}
 
-	var order model.Order
-	err = l.svcCtx.DB.WithContext(l.ctx).
-		Preload("Items").
-		Where("id = ? AND access_token = ?", orderUUID, token).
-		First(&order).Error
-	if err != nil {
+	if err := query.First(&order).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.OrderNotFound)
+	}
+
+	tokenMatches := token != "" && order.AccessToken == token
+
+	maskedPhone := order.CustomerPhone
+	if !tokenMatches && len(maskedPhone) >= 7 {
+		maskedPhone = maskedPhone[:4] + "***" + maskedPhone[len(maskedPhone)-4:]
 	}
 
 	resp := &types.OrderDetailResponse{
@@ -179,7 +247,7 @@ func (l *OrderLogic) GetOrderDetail(orderIDStr string, token string) (*types.Ord
 		Status:               string(order.Status),
 		DeliveryType:         string(order.DeliveryType),
 		TotalAmountToman:     order.TotalAmountToman,
-		CustomerPhone:        order.CustomerPhone,
+		CustomerPhone:        maskedPhone,
 		PaymentMethod:        string(order.PaymentMethod),
 		CreatedAt:            order.CreatedAt,
 		PaidAt:               order.PaidAt,
@@ -189,9 +257,9 @@ func (l *OrderLogic) GetOrderDetail(orderIDStr string, token string) (*types.Ord
 		TwoFactorRequestedAt: order.TwoFactorRequestedAt,
 	}
 
-	// If the order is paid or completed, decrypt any fulfilled items
+	// If the order is paid or completed AND token matches, decrypt any fulfilled items
 	isDelivered := order.Status == model.OrderPaid || order.Status == model.OrderCompleted
-	if isDelivered {
+	if isDelivered && tokenMatches {
 		var deliveredDTOs []types.DeliveredItemDTO
 		for _, item := range order.Items {
 			payloadText := ""
@@ -203,6 +271,8 @@ func (l *OrderLogic) GetOrderDetail(orderIDStr string, token string) (*types.Ord
 						payloadText = decrypted
 					}
 				}
+			} else if item.DeliveredPayload != "" {
+				payloadText = item.DeliveredPayload
 			}
 
 			deliveredDTOs = append(deliveredDTOs, types.DeliveredItemDTO{
@@ -219,17 +289,21 @@ func (l *OrderLogic) GetOrderDetail(orderIDStr string, token string) (*types.Ord
 	return resp, nil
 }
 
-func (l *OrderLogic) SubmitTwoFactor(orderIDStr string, token string, code string) error {
-	orderUUID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		return xerr.NewErrCode(xerr.InvalidParams)
+func (l *OrderLogic) SubmitTwoFactor(orderIDOrNo string, token string, code string) error {
+	var order model.Order
+	query := l.svcCtx.DB.WithContext(l.ctx)
+
+	if orderUUID, err := uuid.Parse(orderIDOrNo); err == nil {
+		query = query.Where("id = ?", orderUUID)
+	} else {
+		query = query.Where("order_number = ?", orderIDOrNo)
 	}
 
-	var order model.Order
-	err = l.svcCtx.DB.WithContext(l.ctx).
-		Where("id = ? AND access_token = ?", orderUUID, token).
-		First(&order).Error
-	if err != nil {
+	if token != "" {
+		query = query.Where("access_token = ?", token)
+	}
+
+	if err := query.First(&order).Error; err != nil {
 		return xerr.NewErrCode(xerr.OrderNotFound)
 	}
 

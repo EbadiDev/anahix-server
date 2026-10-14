@@ -63,6 +63,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.AdminUser{},
 		&model.Payment{},
 		&model.SystemSetting{},
+		&model.VirtualNumberOrder{},
+		&model.Transaction{},
+		&model.AdminActionLog{},
+		&model.Customer{},
+		&model.OTPVerification{},
 	)
 }
 

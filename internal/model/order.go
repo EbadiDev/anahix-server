@@ -46,6 +46,7 @@ type Order struct {
 	
 	CustomerPhone string     `gorm:"size:30;index" json:"customer_phone"`
 	CustomerEmail string     `gorm:"size:120;index" json:"customer_email"`
+	CustomerID    *uuid.UUID `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	AccessToken   string     `gorm:"size:64;uniqueIndex;not null" json:"access_token"`
 
 	Status       OrderStatus  `gorm:"size:35;not null;default:'pending_payment';index" json:"status"`
@@ -100,8 +101,8 @@ type OrderItem struct {
 	DeliveryType    DeliveryType `gorm:"size:30;not null" json:"delivery_type"`
 	UnitPriceToman  int64      `gorm:"not null" json:"unit_price_toman"`
 	
-	// Delivered payload (decrypted dynamically in-memory when order is paid and requested with valid token)
-	DeliveredPayload string    `gorm:"-" json:"delivered_payload,omitempty"`
+	// Delivered payload (stored on instant external fulfillment, or decrypted dynamically for local inventory)
+	DeliveredPayload string    `gorm:"type:text" json:"delivered_payload,omitempty"`
 	Instructions     string    `gorm:"type:text" json:"instructions,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`

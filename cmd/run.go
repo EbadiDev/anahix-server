@@ -177,6 +177,26 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Seeded initial AI products: Gemini 18m (Instant), ChatGPT Plus (Timed), Claude Pro (Instant)")
 	}
 
+	// Ensure group tags and titles are populated for seeded products
+	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%gemini%").Updates(map[string]interface{}{
+		"group_tag":             "gemini",
+		"group_title_fa":        "سرویس‌های گوگل جمینای (Google Gemini)",
+		"delivery_strategy":     "third_party_instant",
+		"external_provider":     "insightx",
+		"external_product_id":   14,
+		"external_product_name": "Gemini Pro 18 Months",
+	})
+	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%chatgpt%").Updates(map[string]interface{}{
+		"group_tag":         "chatgpt",
+		"group_title_fa":    "محصولات اوپن‌ای‌آی و چت‌جی‌پی‌تی (OpenAI ChatGPT)",
+		"delivery_strategy": "manual_operator",
+	})
+	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%claude%").Updates(map[string]interface{}{
+		"group_tag":         "claude",
+		"group_title_fa":    "سرویس‌های انتروپیک کلود (Anthropic Claude)",
+		"delivery_strategy": "manual_operator",
+	})
+
 	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)
 	var paymentCount int64
 	db.Model(&model.Payment{}).Count(&paymentCount)
@@ -242,29 +262,169 @@ func seedInitialData(db *gorm.DB) {
 			{
 				Category: "sms",
 				Key:      "sms_provider",
-				Value:    "mock",
+				Value:    "smsir",
 				Type:     "string",
-				Desc:     "سرویس‌دهنده پیامک (mock, kavenegar, farazsms, ghasedak)",
+				Desc:     "سرویس‌دهنده پیامک اصلی (smsir, mock)",
 			},
 			{
 				Category: "sms",
-				Key:      "sms_config",
-				Value:    `{"api_key":"","sender_number":"10008000"}`,
-				Type:     "json",
-				Desc:     "تنظیمات و کلیدهای دسترسی پنل پیامکی",
+				Key:      "smsir_api_key",
+				Value:    "",
+				Type:     "string",
+				Desc:     "کلید وب‌سرویس اختصاصی سامانه پیامکی SMS.ir",
+			},
+			{
+				Category: "sms",
+				Key:      "smsir_line_number",
+				Value:    "30004505000017",
+				Type:     "string",
+				Desc:     "شماره خط فرستنده اختصاصی پیامک",
+			},
+			{
+				Category: "sms",
+				Key:      "smsir_template_id",
+				Value:    "100000",
+				Type:     "string",
+				Desc:     "شناسه قالب پیامک تایید OTP در سامانه پیامک",
+			},
+			{
+				Category: "sms",
+				Key:      "smsir_is_sandbox",
+				Value:    "true",
+				Type:     "bool",
+				Desc:     "حالت آزمایشی سامانه پیامک (بدون کسر اعتبار)",
 			},
 			{
 				Category: "sms",
 				Key:      "sms_enabled",
 				Value:    "true",
 				Type:     "bool",
-				Desc:     "فعال بودن ارسال پیامک وضعیت سفارش و کد تایید",
+				Desc:     "فعال بودن ارسال پیامک و کد تایید احراز هویت",
 			},
 		}
 
 		for _, s := range smsSettings {
 			db.Create(&s)
 		}
-		log.Println("🌱 Seeded system SMS configurations into database (category: 'sms')")
+		log.Println("🌱 Seeded SMS.ir gateway configurations into database (category: 'sms')")
 	}
+
+	// Seed Virtual Numbers Settings in DB
+	var vnCount int64
+	db.Model(&model.SystemSetting{}).Where("category IN (?, ?)", "virtual_numbers", "fivesim").Count(&vnCount)
+	if vnCount == 0 {
+		vnSettings := []model.SystemSetting{
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_enabled",
+				Value:    "true",
+				Type:     "bool",
+				Desc:     "فعال بودن فروش شماره مجازی دریافت پیامک",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_api_key",
+				Value:    "",
+				Type:     "string",
+				Desc:     "کلید دسترسی زیرساخت شماره‌های مجازی آناهیکس",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_margin_percent",
+				Value:    "25",
+				Type:     "number",
+				Desc:     "درصد سود فروش روی هر شماره مجازی (پیش‌فرض ۲۵ درصد)",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_usd_rate",
+				Value:    "95000",
+				Type:     "number",
+				Desc:     "نرخ تبدیل دلار به تومان برای محاسبه قیمت شماره‌ها",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_rub_rate",
+				Value:    "1050",
+				Type:     "number",
+				Desc:     "نرخ تبدیل روبل به تومان",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_default_operator",
+				Value:    "any",
+				Type:     "string",
+				Desc:     "اپراتور پیش‌فرض خرید شماره (any برای بهترین درصد موفقیت)",
+			},
+			{
+				Category: "virtual_numbers",
+				Key:      "vn_rate_priority",
+				Value:    "manual",
+				Type:     "string",
+				Desc:     "اولویت محاسبه نرخ ارز",
+			},
+		}
+
+		for _, s := range vnSettings {
+			db.Create(&s)
+		}
+		log.Println("🌱 Seeded dynamic virtual number provider configurations (category: 'virtual_numbers')")
+	}
+
+	// Seed Instant Delivery Provider Settings in DB
+	var instantCount int64
+	db.Model(&model.SystemSetting{}).Where("category IN (?, ?)", "instant_delivery", "insightx").Count(&instantCount)
+	if instantCount == 0 {
+		instantSettings := []model.SystemSetting{
+			{
+				Category: "instant_delivery",
+				Key:      "provider_enabled",
+				Value:    "true",
+				Type:     "bool",
+				Desc:     "فعال بودن تحویل آنی و خودکار محصولات دیجیتال آناهیکس",
+			},
+			{
+				Category: "instant_delivery",
+				Key:      "provider_api_key",
+				Value:    "isk_live_jexXb9akFkevDfAGpybP9AM4eI0fNqhE",
+				Type:     "string",
+				Desc:     "کلید اتصال به موتور تحویل آنی و لایسنس‌های آناهیکس",
+			},
+			{
+				Category: "instant_delivery",
+				Key:      "provider_margin_percent",
+				Value:    "25",
+				Type:     "number",
+				Desc:     "درصد مارجین سود محاسبه قیمت تومانی لایسنس‌ها",
+			},
+		}
+
+		for _, s := range instantSettings {
+			db.Create(&s)
+		}
+		log.Println("🌱 Seeded dynamic instant delivery provider configurations (category: 'instant_delivery')")
+	}
+
+	// Update existing sample products with Group Tags and provider mappings
+	db.Model(&model.Product{}).Where("slug LIKE ?", "%gemini%").Updates(map[string]interface{}{
+		"group_tag":             "gemini",
+		"group_title_fa":        "گوگل جمینای (Google Gemini)",
+		"delivery_strategy":     "third_party_instant",
+		"external_provider":     "third_party_api",
+		"external_product_id":   14,
+		"external_product_name": "Gemini Pro 18 Months",
+	})
+	db.Model(&model.Product{}).Where("slug LIKE ?", "%chatgpt%").Updates(map[string]interface{}{
+		"group_tag":         "chatgpt",
+		"group_title_fa":    "اوپن‌ای‌آی و چت‌جی‌پی‌تی (ChatGPT)",
+		"delivery_strategy": "manual_operator",
+		"external_provider": "third_party_api",
+	})
+	db.Model(&model.Product{}).Where("slug LIKE ?", "%claude%").Updates(map[string]interface{}{
+		"group_tag":         "claude",
+		"group_title_fa":    "سرویس‌های انتروپیک کلود (Anthropic Claude)",
+		"delivery_strategy": "manual_operator",
+		"external_provider": "third_party_api",
+	})
 }
+

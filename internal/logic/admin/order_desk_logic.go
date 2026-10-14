@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -23,12 +24,34 @@ func NewOrderDeskLogic(ctx context.Context, svcCtx *svc.ServiceContext) *OrderDe
 	}
 }
 
+type AdminQueueOrderItem struct {
+	ID                   uuid.UUID             `json:"id"`
+	OrderID              string                `json:"order_id"`
+	OrderNumber          string                `json:"order_number"`
+	CustomerPhone        string                `json:"customer_phone"`
+	CustomerEmail        string                `json:"customer_email"`
+	Status               model.OrderStatus     `json:"status"`
+	DeliveryType         model.DeliveryType    `json:"delivery_type"`
+	TotalAmountToman     int64                 `json:"total_amount_toman"`
+	PaymentMethod        model.PaymentMethod   `json:"payment_method"`
+	ProductTitle         string                `json:"product_title"`
+	CustomerCredentials  string                `json:"customer_credentials,omitempty"`
+	AccountEmail         string                `json:"account_email,omitempty"`
+	AccountPassword      string                `json:"account_password,omitempty"`
+	TwoFactorPrompt      string                `json:"two_factor_prompt,omitempty"`
+	TwoFactorCode        string                `json:"two_factor_code,omitempty"`
+	TwoFactorStatus      model.TwoFactorStatus `json:"two_factor_status"`
+	TwoFactorRequestedAt *time.Time            `json:"two_factor_requested_at,omitempty"`
+	CreatedAt            time.Time             `json:"created_at"`
+	UpdatedAt            time.Time             `json:"updated_at"`
+}
+
 type AdminOrderDetailResponse struct {
 	Order               model.Order `json:"order"`
 	CustomerCredentials string      `json:"customer_credentials,omitempty"`
 }
 
-func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]model.Order, error) {
+func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]AdminQueueOrderItem, error) {
 	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Order("created_at asc")
 
 	if status != "" {
@@ -52,22 +75,67 @@ func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
-	return orders, nil
+	resultList := make([]AdminQueueOrderItem, 0, len(orders))
+	for _, o := range orders {
+		item := AdminQueueOrderItem{
+			ID:                   o.ID,
+			OrderID:              o.ID.String(),
+			OrderNumber:          o.OrderNumber,
+			CustomerPhone:        o.CustomerPhone,
+			CustomerEmail:        o.CustomerEmail,
+			Status:               o.Status,
+			DeliveryType:         o.DeliveryType,
+			TotalAmountToman:     o.TotalAmountToman,
+			PaymentMethod:        o.PaymentMethod,
+			TwoFactorPrompt:      o.TwoFactorPrompt,
+			TwoFactorCode:        o.TwoFactorCode,
+			TwoFactorStatus:      o.TwoFactorStatus,
+			TwoFactorRequestedAt: o.TwoFactorRequestedAt,
+			CreatedAt:            o.CreatedAt,
+			UpdatedAt:            o.UpdatedAt,
+		}
+
+		if len(o.Items) > 0 {
+			item.ProductTitle = o.Items[0].ProductTitle
+		}
+
+		if o.CustomerCredentialsEncrypted != "" && l.svcCtx.Vault != nil {
+			dec, decErr := l.svcCtx.Vault.Decrypt(o.CustomerCredentialsEncrypted)
+			if decErr == nil && dec != "" {
+				item.CustomerCredentials = dec
+				// Parse "Email: ... | Pass: ... | Notes: ..."
+				parts := strings.Split(dec, " | ")
+				for _, part := range parts {
+					if strings.HasPrefix(part, "Email: ") {
+						item.AccountEmail = strings.TrimPrefix(part, "Email: ")
+					} else if strings.HasPrefix(part, "Pass: ") {
+						item.AccountPassword = strings.TrimPrefix(part, "Pass: ")
+					}
+				}
+			}
+		}
+
+		resultList = append(resultList, item)
+	}
+
+	return resultList, nil
 }
 
 func (l *OrderDeskLogic) GetOrderDetail(orderIDStr string) (*AdminOrderDetailResponse, error) {
-	orderUUID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		return nil, xerr.NewErrCode(xerr.InvalidParams)
-	}
-
 	var order model.Order
-	if err := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Where("id = ?", orderUUID).First(&order).Error; err != nil {
-		return nil, xerr.NewErrCode(xerr.OrderNotFound)
+	orderUUID, err := uuid.Parse(orderIDStr)
+	if err == nil {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Where("id = ?", orderUUID).First(&order).Error; err != nil {
+			return nil, xerr.NewErrCode(xerr.OrderNotFound)
+		}
+	} else {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Where("order_number = ?", orderIDStr).First(&order).Error; err != nil {
+			return nil, xerr.NewErrCode(xerr.OrderNotFound)
+		}
 	}
 
 	plainCreds := ""
-	if order.CustomerCredentialsEncrypted != "" {
+	if order.CustomerCredentialsEncrypted != "" && l.svcCtx.Vault != nil {
 		dec, decErr := l.svcCtx.Vault.Decrypt(order.CustomerCredentialsEncrypted)
 		if decErr == nil {
 			plainCreds = dec
@@ -81,14 +149,16 @@ func (l *OrderDeskLogic) GetOrderDetail(orderIDStr string) (*AdminOrderDetailRes
 }
 
 func (l *OrderDeskLogic) RequestTwoFactor(orderIDStr string, req *types.RequestTwoFactorRequest) error {
-	orderUUID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		return xerr.NewErrCode(xerr.InvalidParams)
-	}
-
 	var order model.Order
-	if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", orderUUID).First(&order).Error; err != nil {
-		return xerr.NewErrCode(xerr.OrderNotFound)
+	orderUUID, err := uuid.Parse(orderIDStr)
+	if err == nil {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", orderUUID).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
+	} else {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("order_number = ?", orderIDStr).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
 	}
 
 	now := time.Now()
@@ -105,14 +175,16 @@ func (l *OrderDeskLogic) RequestTwoFactor(orderIDStr string, req *types.RequestT
 }
 
 func (l *OrderDeskLogic) CompleteOrder(orderIDStr string, req *types.CompleteOrderRequest) error {
-	orderUUID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		return xerr.NewErrCode(xerr.InvalidParams)
-	}
-
 	var order model.Order
-	if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", orderUUID).First(&order).Error; err != nil {
-		return xerr.NewErrCode(xerr.OrderNotFound)
+	orderUUID, err := uuid.Parse(orderIDStr)
+	if err == nil {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", orderUUID).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
+	} else {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("order_number = ?", orderIDStr).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
 	}
 
 	now := time.Now()

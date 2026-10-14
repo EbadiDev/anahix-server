@@ -12,6 +12,12 @@ run:
 	@echo "🚀 Running Anahix Server..."
 	go run main.go run
 
+kill:
+	@echo "🛑 Freeing port 8080..."
+	@PID=$$(lsof -t -i :8080 2>/dev/null); if [ -n "$$PID" ]; then kill -9 $$PID 2>/dev/null && echo "✅ Killed process on :8080 (PID $$PID)"; else echo "✅ Port 8080 is already free"; fi
+
+restart: kill run
+
 test:
 	@echo "🧪 Running unit & integration tests..."
 	go test -v ./...

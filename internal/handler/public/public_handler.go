@@ -54,8 +54,8 @@ func (h *PublicHandler) GetOrderDetail(c *gin.Context) {
 		token = c.GetHeader("X-Order-Token")
 	}
 
-	if orderID == "" || token == "" {
-		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidAccessToken))
+	if orderID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
 		return
 	}
 
@@ -77,8 +77,13 @@ func (h *PublicHandler) SubmitTwoFactor(c *gin.Context) {
 		return
 	}
 
+	code := req.TwoFactorCode
+	if code == "" {
+		code = req.Code
+	}
+
 	l := public.NewOrderLogic(c.Request.Context(), h.svcCtx)
-	err := l.SubmitTwoFactor(orderID, token, req.TwoFactorCode)
+	err := l.SubmitTwoFactor(orderID, token, code)
 	result.HttpResult(c, gin.H{"status": "submitted"}, err)
 }
 

@@ -46,6 +46,14 @@ type Product struct {
 	IconURL      string `gorm:"size:512" json:"icon_url"`
 	BannerURL    string `gorm:"size:512" json:"banner_url"`
 
+	// Delivery Strategy & Group Routing Engine
+	GroupTag            string `gorm:"size:80;index;default:'general'" json:"group_tag"`
+	GroupTitleFA        string `gorm:"size:120" json:"group_title_fa"`
+	DeliveryStrategy    string `gorm:"size:50;default:'auto'" json:"delivery_strategy"`
+	ExternalProvider    string `gorm:"size:50;default:'third_party_api'" json:"external_provider"`
+	ExternalProductID   int64  `gorm:"default:0;index" json:"external_product_id"`
+	ExternalProductName string `gorm:"size:255" json:"external_product_name"`
+
 	// Computed stock count for instant delivery items
 	AvailableStock int64 `gorm:"-" json:"available_stock"`
 

@@ -2,14 +2,20 @@ package svc
 
 import (
 	"github.com/EbadiDev/anahix-server/internal/config"
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/sms"
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/smsir"
 	"github.com/EbadiDev/anahix-server/pkg/crypto"
 	"gorm.io/gorm"
 )
 
 type ServiceContext struct {
-	Config *config.Config
-	DB     *gorm.DB
-	Vault  *crypto.Vault
+	Config              *config.Config
+	DB                  *gorm.DB
+	Vault               *crypto.Vault
+	SMSProvider         *sms.Client
+	FulfillmentProvider *fulfillment.Client
+	SMSIRClient         *smsir.Client
 }
 
 func NewServiceContext(cfg *config.Config, db *gorm.DB) (*ServiceContext, error) {
@@ -19,8 +25,11 @@ func NewServiceContext(cfg *config.Config, db *gorm.DB) (*ServiceContext, error)
 	}
 
 	return &ServiceContext{
-		Config: cfg,
-		DB:     db,
-		Vault:  vault,
+		Config:              cfg,
+		DB:                  db,
+		Vault:               vault,
+		SMSProvider:         sms.NewClient(),
+		FulfillmentProvider: fulfillment.NewClient(""),
+		SMSIRClient:         smsir.NewClient(),
 	}, nil
 }
