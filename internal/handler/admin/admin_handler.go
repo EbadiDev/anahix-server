@@ -136,6 +136,30 @@ func (h *AdminHandler) CompleteOrder(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "completed"}, err)
 }
 
+func (h *AdminHandler) ListProducts(c *gin.Context) {
+	var products []model.Product
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Order("created_at desc").
+		Find(&products).Error
+	if err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
+		return
+	}
+
+	for i := range products {
+		var stock int64
+		if products[i].DeliveryType == model.DeliveryInstant {
+			h.svcCtx.DB.WithContext(c.Request.Context()).
+				Model(&model.InventoryItem{}).
+				Where("product_id = ? AND status = ?", products[i].ID, model.InventoryAvailable).
+				Count(&stock)
+		}
+		products[i].AvailableStock = stock
+	}
+
+	result.HttpResult(c, products, nil)
+}
+
 func (h *AdminHandler) CreateProduct(c *gin.Context) {
 	var p model.Product
 	if err := c.ShouldBindJSON(&p); err != nil {
@@ -147,6 +171,10 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 		p.ID = uuid.New()
 	}
 
+	if p.Slug == "" {
+		p.Slug = fmt.Sprintf("prod-%s", p.ID.String()[:8])
+	}
+
 	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Create(&p).Error; err != nil {
 		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
 		return
@@ -155,6 +183,80 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_PRODUCT", "product", p.ID.String(), fmt.Sprintf("ایجاد محصول جدید: %s (%s)", p.TitleFA, p.Slug), p, c.ClientIP(), c.Request.UserAgent())
 
 	result.HttpResult(c, p, nil)
+}
+
+func (h *AdminHandler) UpdateProduct(c *gin.Context) {
+	idStr := c.Param("id")
+	prodID, err := uuid.Parse(idStr)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("شناسه محصول نامعتبر است"))
+		return
+	}
+
+	var existing model.Product
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&existing, "id = ?", prodID).Error; err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
+		return
+	}
+
+	var req model.Product
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	existing.Title = req.Title
+	existing.TitleFA = req.TitleFA
+	if req.Slug != "" {
+		existing.Slug = req.Slug
+	}
+	existing.Description = req.Description
+	existing.Category = req.Category
+	existing.DeliveryType = req.DeliveryType
+	existing.SLAMinMinutes = req.SLAMinMinutes
+	existing.SLAMaxMinutes = req.SLAMaxMinutes
+	existing.SLADisplayText = req.SLADisplayText
+	existing.OperatingHours = req.OperatingHours
+	existing.BaseCostUSD = req.BaseCostUSD
+	existing.PriceToman = req.PriceToman
+	existing.IsActive = req.IsActive
+	existing.Instructions = req.Instructions
+	existing.GroupTag = req.GroupTag
+	existing.GroupTitleFA = req.GroupTitleFA
+	existing.DeliveryStrategy = req.DeliveryStrategy
+
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Save(&existing).Error; err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
+		return
+	}
+
+	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_PRODUCT", "product", existing.ID.String(), fmt.Sprintf("ویرایش محصول: %s (%s)", existing.TitleFA, existing.Slug), existing, c.ClientIP(), c.Request.UserAgent())
+
+	result.HttpResult(c, existing, nil)
+}
+
+func (h *AdminHandler) DeleteProduct(c *gin.Context) {
+	idStr := c.Param("id")
+	prodID, err := uuid.Parse(idStr)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("شناسه محصول نامعتبر است"))
+		return
+	}
+
+	var existing model.Product
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&existing, "id = ?", prodID).Error; err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
+		return
+	}
+
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&existing).Error; err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
+		return
+	}
+
+	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_PRODUCT", "product", prodID.String(), fmt.Sprintf("حذف محصول: %s (%s)", existing.TitleFA, existing.Slug), nil, c.ClientIP(), c.Request.UserAgent())
+
+	result.HttpResult(c, gin.H{"deleted": true, "id": prodID.String()}, nil)
 }
 
 func (h *AdminHandler) GetVirtualNumberSettings(c *gin.Context) {
@@ -332,3 +434,70 @@ func (h *AdminHandler) SendTestSMS(c *gin.Context) {
 	err := l.SendTestSMS(&req, c.GetString("username"))
 	result.HttpResult(c, gin.H{"status": "sent", "message": "پیامک آزمایشی با موفقیت ارسال شد"}, err)
 }
+
+// Inventory Management Handlers
+
+func (h *AdminHandler) GetInventoryStats(c *gin.Context) {
+	l := admin.NewInventoryLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetStats()
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) ListInventory(c *gin.Context) {
+	productID := c.Query("product_id")
+	status := c.Query("status")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	l := admin.NewInventoryLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListInventory(productID, status, page, pageSize)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) ReplaceKey(c *gin.Context) {
+	var req types.ReplaceKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewInventoryLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ReplaceKey(&req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "REPLACE_INVENTORY_KEY", "inventory", req.OldInventoryItemID, fmt.Sprintf("جایگزینی کلید لایسنس برای سفارش #%s (علت: %s)", req.OrderID, req.Reason), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) ExportKeys(c *gin.Context) {
+	productID := c.Query("product_id")
+	status := c.Query("status")
+
+	l := admin.NewInventoryLogic(c.Request.Context(), h.svcCtx)
+	keys, err := l.ExportKeys(productID, status)
+	result.HttpResult(c, gin.H{"keys": keys, "count": len(keys)}, err)
+}
+
+// Coupon Management Handlers
+
+func (h *AdminHandler) ListCoupons(c *gin.Context) {
+	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListCoupons()
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) CreateCoupon(c *gin.Context) {
+	var req types.CreateCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.CreateCoupon(&req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_COUPON", "coupon", resp.ID, fmt.Sprintf("ایجاد کد تخفیف جدید (%s)", resp.Code), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, resp, err)
+}
+

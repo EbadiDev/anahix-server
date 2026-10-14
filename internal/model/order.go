@@ -52,10 +52,14 @@ type Order struct {
 	Status       OrderStatus  `gorm:"size:35;not null;default:'pending_payment';index" json:"status"`
 	DeliveryType DeliveryType `gorm:"size:30;not null" json:"delivery_type"`
 
-	TotalAmountToman int64         `gorm:"not null" json:"total_amount_toman"`
-	PaymentMethod    PaymentMethod `gorm:"size:30;not null" json:"payment_method"`
-	PaymentRefID     string        `gorm:"size:120" json:"payment_ref_id,omitempty"`
-	PaymentAuthority string        `gorm:"size:120;index" json:"payment_authority,omitempty"`
+	TotalAmountToman    int64         `gorm:"not null" json:"total_amount_toman"`
+	SubtotalAmountToman int64         `gorm:"not null;default:0" json:"subtotal_amount_toman"`
+	DiscountAmountToman int64         `gorm:"not null;default:0" json:"discount_amount_toman"`
+	CouponCode          string        `gorm:"size:64" json:"coupon_code,omitempty"`
+	ReferralCode        string        `gorm:"size:32;index" json:"referral_code,omitempty"`
+	PaymentMethod       PaymentMethod `gorm:"size:30;not null" json:"payment_method"`
+	PaymentRefID        string        `gorm:"size:120" json:"payment_ref_id,omitempty"`
+	PaymentAuthority    string        `gorm:"size:120;index" json:"payment_authority,omitempty"`
 
 	PaidAt      *time.Time `json:"paid_at,omitempty"`
 	ExpiresAt   time.Time  `gorm:"not null;index" json:"expires_at"` // Payment expiration (e.g. 20 min)
@@ -99,7 +103,9 @@ type OrderItem struct {
 	ProductTitle    string     `gorm:"size:255;not null" json:"product_title"`
 	ProductSlug     string     `gorm:"size:120;not null" json:"product_slug"`
 	DeliveryType    DeliveryType `gorm:"size:30;not null" json:"delivery_type"`
-	UnitPriceToman  int64      `gorm:"not null" json:"unit_price_toman"`
+	UnitPriceToman  int64        `gorm:"not null" json:"unit_price_toman"`
+	Quantity        int          `gorm:"default:1;not null" json:"quantity"`
+	SubtotalToman   int64        `gorm:"default:0" json:"subtotal_toman"`
 	
 	// Delivered payload (stored on instant external fulfillment, or decrypted dynamically for local inventory)
 	DeliveredPayload string    `gorm:"type:text" json:"delivered_payload,omitempty"`

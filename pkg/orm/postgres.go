@@ -68,6 +68,10 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.AdminActionLog{},
 		&model.Customer{},
 		&model.OTPVerification{},
+		&model.Coupon{},
+		&model.CouponUsage{},
+		&model.Referral{},
+		&model.ReferralCommission{},
 	)
 }
 

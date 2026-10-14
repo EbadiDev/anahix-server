@@ -92,3 +92,60 @@ func (h *PublicHandler) ListPaymentMethods(c *gin.Context) {
 	resp, err := l.ListPaymentMethods()
 	result.HttpResult(c, resp, err)
 }
+
+func (h *PublicHandler) ValidateCoupon(c *gin.Context) {
+	var req types.ValidateCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCouponLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ValidateCoupon(&req)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) GetReferralStats(c *gin.Context) {
+	phone := c.GetString("phone")
+	if phone == "" {
+		phone = c.Query("phone")
+	}
+
+	if phone == "" {
+		result.ParamErrorResult(c, xerr.NewErrMsg("شماره همراه معتبر نیست"))
+		return
+	}
+
+	l := public.NewReferralLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetReferralStats(phone)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) TransferReferralCommission(c *gin.Context) {
+	phone := c.GetString("phone")
+	if phone == "" {
+		result.ParamErrorResult(c, xerr.NewErrMsg("احراز هویت الزامی است"))
+		return
+	}
+
+	l := public.NewReferralLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.TransferToWallet(phone)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) GetWalletLedger(c *gin.Context) {
+	phone := c.GetString("phone")
+	if phone == "" {
+		phone = c.Query("phone")
+	}
+
+	if phone == "" {
+		result.ParamErrorResult(c, xerr.NewErrMsg("شماره همراه معتبر نیست"))
+		return
+	}
+
+	l := public.NewWalletLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetCustomerLedger(phone)
+	result.HttpResult(c, resp, err)
+}
+

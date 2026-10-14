@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/EbadiDev/anahix-server/initialize"
 	"github.com/EbadiDev/anahix-server/internal/config"
 	"github.com/EbadiDev/anahix-server/internal/handler"
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -58,6 +59,9 @@ func runServer() {
 			log.Fatalf("Database migration failed: %v", err)
 		}
 	}
+
+	// Run ArchNet-style migrations and initial database seeders
+	initialize.StartInitDatabase(db)
 
 	// Seed default admin and sample products if table is empty
 	seedInitialData(db)
@@ -119,83 +123,8 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Created initial admin user: 'admin' (password: 'admin123456')")
 	}
 
-	// Seed Initial AI Products if empty
-	var prodCount int64
-	db.Model(&model.Product{}).Count(&prodCount)
-	if prodCount == 0 {
-		products := []model.Product{
-			{
-				ID:             uuid.New(),
-				Title:          "Gemini Advanced 18 Months Activation Link",
-				TitleFA:        "لینک فعال‌سازی ۱۸ ماهه گوگل جمینای ادونس (Gemini)",
-				Slug:           "gemini-advanced-18m",
-				Category:       model.CategoryAILink,
-				DeliveryType:   model.DeliveryInstant,
-				PriceToman:     1480000,
-				BaseCostUSD:    12.0,
-				IsActive:       true,
-				OperatingHours: "۲۴ ساعته (تحویل آنی)",
-				Description:    "فعال‌سازی قانونی اکانت Google Gemini Advanced و Google One به مدت ۱۸ ماه با امکان فعال‌سازی روی جیمیل شخصی خودتان بدون نیاز به پسورد.",
-				Instructions:   "۱. روی لینک تحویل داده شده کلیک کنید.\n۲. با اکانت گوگل خود لاگین کنید.\n۳. بر روی دکمه Redeem کلیک کنید تا ۱۸ ماه فعال شود.",
-			},
-			{
-				ID:             uuid.New(),
-				Title:          "ChatGPT Plus Personal Account Upgrade",
-				TitleFA:        "خرید و فعال‌سازی چت جی‌پی‌تی پلاس روی اکانت شخصی (ChatGPT Plus)",
-				Slug:           "chatgpt-plus-personal",
-				Category:       model.CategoryPersonalUpgrade,
-				DeliveryType:   model.DeliveryManualTimed,
-				SLAMinMinutes:  30,
-				SLAMaxMinutes:  180,
-				SLADisplayText: "تحویل بین ۳۰ دقیقه تا ۳ ساعت کاری",
-				PriceToman:     1950000,
-				BaseCostUSD:    20.0,
-				IsActive:       true,
-				OperatingHours: "۰۹:۰۰ الی ۲۳:۰۰",
-				Description:    "پرداخت مستقیم اشتراک ChatGPT Plus با کارت‌های بین‌المللی معتبر روی ایمیل شخصی شما با حفظ تمام چت‌ها و هیستوری قبلی.",
-				Instructions:   "اطلاعات اکانت خود را در مرحله خرید ثبت کنید. در صورت نیاز به کد تایید دومرحله‌ای، اپراتور از طریق همین صفحه از شما درخواست کد خواهد کرد.",
-			},
-			{
-				ID:             uuid.New(),
-				Title:          "Claude Pro Ready Account",
-				TitleFA:        "اکانت آماده و اختصاصی کلود پرو (Claude Pro)",
-				Slug:           "claude-pro-ready",
-				Category:       model.CategoryAIAccount,
-				DeliveryType:   model.DeliveryInstant,
-				PriceToman:     1890000,
-				BaseCostUSD:    20.0,
-				IsActive:       true,
-				OperatingHours: "۲۴ ساعته (تحویل آنی)",
-				Description:    "اکانت کاملاً اختصاصی Claude Pro ساخته شده روی ایمیل معتبر با دسترسی به Claude 3.5 Sonnet و سقف پیام بالا.",
-				Instructions:   "ایمیل و رمز عبور دریافتی را در سایت claude.ai وارد کرده و استفاده نمایید. رمز عبور قابل تغییر است.",
-			},
-		}
-
-		for _, p := range products {
-			db.Create(&p)
-		}
-		log.Println("🌱 Seeded initial AI products: Gemini 18m (Instant), ChatGPT Plus (Timed), Claude Pro (Instant)")
-	}
-
-	// Ensure group tags and titles are populated for seeded products
-	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%gemini%").Updates(map[string]interface{}{
-		"group_tag":             "gemini",
-		"group_title_fa":        "سرویس‌های گوگل جمینای (Google Gemini)",
-		"delivery_strategy":     "third_party_instant",
-		"external_provider":     "insightx",
-		"external_product_id":   14,
-		"external_product_name": "Gemini Pro 18 Months",
-	})
-	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%chatgpt%").Updates(map[string]interface{}{
-		"group_tag":         "chatgpt",
-		"group_title_fa":    "محصولات اوپن‌ای‌آی و چت‌جی‌پی‌تی (OpenAI ChatGPT)",
-		"delivery_strategy": "manual_operator",
-	})
-	db.Model(&model.Product{}).Where("slug LIKE ? AND (group_tag = '' OR group_tag = 'general')", "%claude%").Updates(map[string]interface{}{
-		"group_tag":         "claude",
-		"group_title_fa":    "سرویس‌های انتروپیک کلود (Anthropic Claude)",
-		"delivery_strategy": "manual_operator",
-	})
+	// Ensure system owner phone is granted admin status
+	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
 
 	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)
 	var paymentCount int64
@@ -426,5 +355,52 @@ func seedInitialData(db *gorm.DB) {
 		"delivery_strategy": "manual_operator",
 		"external_provider": "third_party_api",
 	})
+
+	// Seed Coupons if empty
+	var couponCount int64
+	db.Model(&model.Coupon{}).Count(&couponCount)
+	if couponCount == 0 {
+		coupons := []model.Coupon{
+			{
+				ID:                  uuid.New(),
+				Code:                "WELCOME10",
+				DiscountType:        model.DiscountTypePercentage,
+				DiscountValue:       10, // 10%
+				MinOrderAmountToman: 100000,
+				MaxDiscountToman:    250000,
+				PerUserLimit:        1,
+				MaxUsage:            1000,
+				Category:            "all",
+				IsActive:            true,
+			},
+			{
+				ID:                  uuid.New(),
+				Code:                "ANAHIX50",
+				DiscountType:        model.DiscountTypeFixed,
+				DiscountValue:       50000, // 50,000 Toman
+				MinOrderAmountToman: 300000,
+				PerUserLimit:        1,
+				MaxUsage:            500,
+				Category:            "all",
+				IsActive:            true,
+			},
+			{
+				ID:                  uuid.New(),
+				Code:                "TELEGRAM20",
+				DiscountType:        model.DiscountTypePercentage,
+				DiscountValue:       20, // 20%
+				MinOrderAmountToman: 50000,
+				MaxDiscountToman:    100000,
+				PerUserLimit:        1,
+				MaxUsage:            2000,
+				Category:            "virtual_number",
+				IsActive:            true,
+			},
+		}
+		for _, c := range coupons {
+			db.Create(&c)
+		}
+		log.Println("🌱 Seeded default promotional coupons ('WELCOME10', 'ANAHIX50', 'TELEGRAM20')")
+	}
 }
 

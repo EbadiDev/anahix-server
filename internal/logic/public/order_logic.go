@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
@@ -45,146 +46,320 @@ func generateOrderNumber() string {
 }
 
 func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOrderResponse, error) {
-	prodUUID, err := uuid.Parse(req.ProductID)
-	if err != nil {
-		return nil, xerr.NewErrCode(xerr.InvalidParams)
+	// 1. Resolve requested items
+	type itemEntry struct {
+		Product  model.Product
+		Quantity int
+	}
+	var entries []itemEntry
+
+	if len(req.Items) > 0 {
+		for _, it := range req.Items {
+			pID, err := uuid.Parse(it.ProductID)
+			if err != nil {
+				continue
+			}
+			qty := it.Quantity
+			if qty <= 0 {
+				qty = 1
+			}
+			var prod model.Product
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
+				entries = append(entries, itemEntry{Product: prod, Quantity: qty})
+			}
+		}
+	} else if req.ProductID != "" {
+		pID, err := uuid.Parse(req.ProductID)
+		if err == nil {
+			var prod model.Product
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
+				entries = append(entries, itemEntry{Product: prod, Quantity: 1})
+			}
+		}
 	}
 
-	var product model.Product
-	if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", prodUUID, true).First(&product).Error; err != nil {
-		return nil, xerr.NewErrCode(xerr.ProductNotFound)
+	if len(entries) == 0 {
+		return nil, xerr.NewErrMsg("هیچ محصول معتبری در سبد خرید یافت نشد")
+	}
+
+	// 2. Compute Subtotal
+	var subtotalToman int64
+	for _, entry := range entries {
+		subtotalToman += entry.Product.PriceToman * int64(entry.Quantity)
+	}
+
+	// 3. Process Coupon if provided
+	var discountToman int64
+	var appliedCoupon *model.Coupon
+	if req.CouponCode != "" {
+		code := strings.ToUpper(strings.TrimSpace(req.CouponCode))
+		var c model.Coupon
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("code = ? AND is_active = ?", code, true).First(&c).Error; err == nil {
+			now := time.Now()
+			valid := true
+			if c.ExpiresAt != nil && now.After(*c.ExpiresAt) {
+				valid = false
+			}
+			if c.MaxUsage > 0 && c.CurrentUsage >= c.MaxUsage {
+				valid = false
+			}
+			if c.MinOrderAmountToman > 0 && subtotalToman < c.MinOrderAmountToman {
+				valid = false
+			}
+			if valid {
+				if c.DiscountType == model.DiscountTypePercentage {
+					discountToman = (subtotalToman * c.DiscountValue) / 100
+					if c.MaxDiscountToman > 0 && discountToman > c.MaxDiscountToman {
+						discountToman = c.MaxDiscountToman
+					}
+				} else {
+					discountToman = c.DiscountValue
+				}
+				if discountToman > subtotalToman {
+					discountToman = subtotalToman
+				}
+				appliedCoupon = &c
+			}
+		}
+	}
+
+	totalAmountToman := subtotalToman - discountToman
+	if totalAmountToman < 0 {
+		totalAmountToman = 0
 	}
 
 	accessToken := generateSecureToken()
 	orderNumber := generateOrderNumber()
 	expiresAt := time.Now().Add(20 * time.Minute)
+	primaryDeliveryType := entries[0].Product.DeliveryType
 
 	var createdOrder model.Order
 
-	// Transaction to atomically reserve stock (if instant) and create order
 	txErr := l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
-		var reservedItemID *uuid.UUID
+		orderID := uuid.New()
+		now := time.Now()
 
-		// Determine effective delivery strategy
-		effectiveStrategy := product.DeliveryStrategy
-		if effectiveStrategy == "" || effectiveStrategy == "auto" {
-			if product.ExternalProductID > 0 {
-				effectiveStrategy = "third_party_instant"
-			} else if product.DeliveryType == model.DeliveryInstant {
-				effectiveStrategy = "local_inventory"
-			} else {
-				effectiveStrategy = "manual_operator"
+		// If payment is via wallet balance, verify and debit customer
+		isPaid := false
+		var payingCustomer *model.Customer
+		if req.PaymentMethod == string(model.PaymentMethodBalance) {
+			var cust model.Customer
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("phone = ?", req.CustomerPhone).First(&cust).Error; err != nil {
+				return xerr.NewErrMsg("حساب کاربری یافت نشد")
 			}
-		}
-
-		if effectiveStrategy == "local_inventory" {
-			// Find and lock 1 available inventory item using SELECT ... FOR UPDATE SKIP LOCKED
-			var item model.InventoryItem
-			err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
-				Where("product_id = ? AND status = ?", product.ID, model.InventoryAvailable).
-				First(&item).Error
-			if err != nil {
-				return xerr.NewErrCode(xerr.OutOfStock)
+			if cust.BalanceToman < totalAmountToman {
+				return xerr.NewErrMsg(fmt.Sprintf("موجودی کیف پول شما (%d تومان) برای پرداخت این سفارش (%d تومان) کافی نیست", cust.BalanceToman, totalAmountToman))
 			}
-
-			reservedUntil := expiresAt
-			item.Status = model.InventoryReserved
-			item.ReservedUntil = &reservedUntil
-
-			if err := tx.Save(&item).Error; err != nil {
+			cust.BalanceToman -= totalAmountToman
+			if err := tx.Save(&cust).Error; err != nil {
 				return err
 			}
-			reservedItemID = &item.ID
+			payingCustomer = &cust
+			isPaid = true
 		}
 
-		// Encrypt customer account credentials if this is a timed on-account upgrade
+		// Prepare Order Items and reserve inventory where applicable
+		var orderItems []model.OrderItem
+		for _, entry := range entries {
+			prod := entry.Product
+			effectiveStrategy := prod.DeliveryStrategy
+			if effectiveStrategy == "" || effectiveStrategy == "auto" {
+				if prod.ExternalProductID > 0 {
+					effectiveStrategy = "third_party_instant"
+				} else if prod.DeliveryType == model.DeliveryInstant {
+					effectiveStrategy = "local_inventory"
+				} else {
+					effectiveStrategy = "manual_operator"
+				}
+			}
+
+			for q := 0; q < entry.Quantity; q++ {
+				var reservedItemID *uuid.UUID
+				deliveredPayload := ""
+				instructions := prod.Instructions
+
+				if effectiveStrategy == "local_inventory" {
+					var item model.InventoryItem
+					err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+						Where("product_id = ? AND status = ?", prod.ID, model.InventoryAvailable).
+						First(&item).Error
+					if err != nil {
+						return xerr.NewErrCode(xerr.OutOfStock)
+					}
+
+					if isPaid {
+						item.Status = model.InventorySold
+						item.SoldAt = &now
+						item.DeliveredAt = &now
+					} else {
+						reservedUntil := expiresAt
+						item.Status = model.InventoryReserved
+						item.ReservedUntil = &reservedUntil
+					}
+					item.ReservedOrderID = &orderID
+					if err := tx.Save(&item).Error; err != nil {
+						return err
+					}
+					reservedItemID = &item.ID
+
+					if isPaid {
+						dec, decErr := l.svcCtx.Vault.Decrypt(item.PayloadEncrypted)
+						if decErr == nil {
+							deliveredPayload = dec
+						}
+					}
+				} else if effectiveStrategy == "third_party_instant" && isPaid && prod.ExternalProductID > 0 {
+					var apiKeySetting model.SystemSetting
+					_ = tx.Where("key IN (?, ?)", "provider_api_key", "insightx_api_key").First(&apiKeySetting).Error
+					if apiKeySetting.Value != "" {
+						orderRes, oErr := l.svcCtx.FulfillmentProvider.CreateOrder(apiKeySetting.Value, orderID.String(), prod.ExternalProductID, 1)
+						if oErr == nil && orderRes != nil && len(orderRes.Codes) > 0 {
+							deliveredPayload = orderRes.Codes[0]
+							instructions = "کد فعال‌سازی آنی شما: " + deliveredPayload
+						}
+					}
+				}
+
+				orderItems = append(orderItems, model.OrderItem{
+					ID:               uuid.New(),
+					OrderID:          orderID,
+					ProductID:        prod.ID,
+					InventoryItemID:  reservedItemID,
+					ProductTitle:     prod.TitleFA,
+					ProductSlug:      prod.Slug,
+					DeliveryType:     prod.DeliveryType,
+					UnitPriceToman:   prod.PriceToman,
+					Quantity:         1,
+					SubtotalToman:    prod.PriceToman,
+					DeliveredPayload: deliveredPayload,
+					Instructions:     instructions,
+				})
+			}
+		}
+
+		// Encrypt credentials if on-account upgrade
 		var encryptedCreds string
-		if (product.DeliveryType == model.DeliveryManualTimed || effectiveStrategy == "manual_operator") && req.CustomerAccountEmail != "" {
+		if req.CustomerAccountEmail != "" {
 			plainCreds := fmt.Sprintf("Email: %s | Pass: %s | Notes: %s",
 				req.CustomerAccountEmail, req.CustomerAccountPassword, req.CustomerNotes)
 			enc, encErr := l.svcCtx.Vault.Encrypt(plainCreds)
-			if encErr != nil {
-				return encErr
+			if encErr == nil {
+				encryptedCreds = enc
 			}
-			encryptedCreds = enc
 		}
 
-		orderID := uuid.New()
+		initialStatus := model.OrderPendingPayment
+		var paidAtTime *time.Time
+		var completedAtTime *time.Time
+
+		if isPaid {
+			initialStatus = model.OrderPaid
+			paidAtTime = &now
+
+			// Check if all items are instantly fulfilled
+			allInstantDelivered := true
+			for _, oi := range orderItems {
+				if oi.DeliveredPayload == "" && oi.DeliveryType != model.DeliveryInstant {
+					allInstantDelivered = false
+					break
+				}
+			}
+			if allInstantDelivered {
+				initialStatus = model.OrderCompleted
+				completedAtTime = &now
+			}
+		}
+
 		order := model.Order{
 			ID:                           orderID,
 			OrderNumber:                  orderNumber,
 			CustomerPhone:                req.CustomerPhone,
 			CustomerEmail:                req.CustomerEmail,
 			AccessToken:                  accessToken,
-			Status:                       model.OrderPendingPayment,
-			DeliveryType:                 product.DeliveryType,
-			TotalAmountToman:             product.PriceToman,
+			Status:                       initialStatus,
+			DeliveryType:                 primaryDeliveryType,
+			SubtotalAmountToman:          subtotalToman,
+			DiscountAmountToman:          discountToman,
+			CouponCode:                   req.CouponCode,
+			ReferralCode:                 req.ReferralCode,
+			TotalAmountToman:             totalAmountToman,
 			PaymentMethod:                model.PaymentMethod(req.PaymentMethod),
+			PaidAt:                       paidAtTime,
+			CompletedAt:                  completedAtTime,
 			ExpiresAt:                    expiresAt,
 			CustomerCredentialsEncrypted: encryptedCreds,
 			TwoFactorStatus:              model.TwoFactorIdle,
-			Items: []model.OrderItem{
-				{
-					OrderID:         orderID,
-					ProductID:       product.ID,
-					InventoryItemID: reservedItemID,
-					ProductTitle:    product.TitleFA,
-					ProductSlug:     product.Slug,
-					DeliveryType:    product.DeliveryType,
-					UnitPriceToman:  product.PriceToman,
-					Instructions:    product.Instructions,
-				},
-			},
-		}
-
-		// Instant balance payment & automatic fulfillment
-		if req.PaymentMethod == string(model.PaymentMethodBalance) {
-			now := time.Now()
-			order.PaidAt = &now
-
-			if effectiveStrategy == "third_party_instant" && product.ExternalProductID > 0 {
-				var apiKeySetting model.SystemSetting
-				_ = tx.Where("key IN (?, ?)", "provider_api_key", "insightx_api_key").First(&apiKeySetting).Error
-				if apiKeySetting.Value != "" {
-					orderRes, oErr := l.svcCtx.FulfillmentProvider.CreateOrder(apiKeySetting.Value, orderID.String(), product.ExternalProductID, 1)
-					if oErr == nil && orderRes != nil && len(orderRes.Codes) > 0 {
-						order.Status = model.OrderCompleted
-						order.CompletedAt = &now
-						code := orderRes.Codes[0]
-						order.Items[0].DeliveredPayload = code
-						order.Items[0].Instructions = "کد / لینک فعال‌سازی آنی شما: " + code
-					} else {
-						// Fallback gracefully to operator queue
-						order.Status = model.OrderPaid
-						order.OperatorNotes = "صدور خودکار با خطا مواجه شد. جهت تحویل دستی به میز اپراتور ارجاع گردید."
-					}
-				} else {
-					order.Status = model.OrderPaid
-				}
-			} else if effectiveStrategy == "local_inventory" && reservedItemID != nil {
-				order.Status = model.OrderCompleted
-				order.CompletedAt = &now
-			} else {
-				order.Status = model.OrderPaid
-			}
+			Items:                        orderItems,
 		}
 
 		if err := tx.Create(&order).Error; err != nil {
 			return err
 		}
 
-		// If stock was reserved, link the order ID to the inventory item
-		if reservedItemID != nil {
-			if err := tx.Model(&model.InventoryItem{}).
-				Where("id = ?", *reservedItemID).
-				Update("reserved_order_id", orderID).Error; err != nil {
-				return err
+		// Record Coupon Usage if coupon applied and order paid
+		if appliedCoupon != nil && isPaid {
+			tx.Model(appliedCoupon).Update("current_usage", appliedCoupon.CurrentUsage+1)
+			_ = tx.Create(&model.CouponUsage{
+				ID:            uuid.New(),
+				CouponID:      appliedCoupon.ID,
+				CustomerPhone: req.CustomerPhone,
+				OrderID:       orderID,
+				DiscountToman: discountToman,
+				CreatedAt:     now,
+			})
+		}
+
+		// Referral Tracking & Commission
+		if req.ReferralCode != "" && isPaid && totalAmountToman > 0 {
+			var referrer model.Customer
+			if err := tx.Where("referral_code = ?", req.ReferralCode).First(&referrer).Error; err == nil {
+				if referrer.Phone != req.CustomerPhone {
+					commissionRate := 0.10 // 10% commission
+					commissionToman := int64(float64(totalAmountToman) * commissionRate)
+
+					var customerID *uuid.UUID
+					if payingCustomer != nil {
+						customerID = &payingCustomer.ID
+					}
+
+					if customerID != nil {
+						// Record referral link if not exists
+						var existingRef model.Referral
+						if err := tx.Where("referred_customer_id = ?", *customerID).First(&existingRef).Error; err != nil {
+							_ = tx.Create(&model.Referral{
+								ID:                 uuid.New(),
+								ReferrerCustomerID: referrer.ID,
+								ReferredCustomerID: *customerID,
+								ReferralCode:       req.ReferralCode,
+								CreatedAt:          now,
+							})
+						}
+
+						// Award commission to referrer
+						if commissionToman > 0 {
+							_ = tx.Create(&model.ReferralCommission{
+								ID:                 uuid.New(),
+								ReferrerCustomerID: referrer.ID,
+								ReferredCustomerID: *customerID,
+								OrderID:            orderID,
+								OrderAmountToman:   totalAmountToman,
+								CommissionToman:    commissionToman,
+								CommissionRate:     commissionRate,
+								Status:             model.CommissionConfirmed,
+								CreatedAt:          now,
+							})
+
+							_ = tx.Model(&referrer).Update("referral_balance_toman", referrer.ReferralBalanceToman+commissionToman)
+						}
+					}
+				}
 			}
 		}
 
-		// Record financial transaction log
+		// Financial transaction log
 		txnStatus := model.TxStatusPending
-		if order.PaidAt != nil {
+		if isPaid {
 			txnStatus = model.TxStatusSuccess
 		}
 		_ = audit.RecordTransaction(l.ctx, tx, &model.Transaction{
@@ -196,7 +371,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			PaymentPlatform: model.PaymentPlatform(order.PaymentMethod),
 			PaymentRefID:    order.PaymentRefID,
 			Status:          txnStatus,
-			Description:     fmt.Sprintf("سفارش فروشگاهی #%s (%s)", order.OrderNumber, product.TitleFA),
+			Description:     fmt.Sprintf("سفارش فروشگاهی #%s (%d آیتم)", order.OrderNumber, len(orderItems)),
 		})
 
 		createdOrder = order
@@ -210,13 +385,15 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	paymentURL := fmt.Sprintf("/checkout/pay/%s?token=%s", createdOrder.ID.String(), accessToken)
 
 	return &types.CreateOrderResponse{
-		OrderID:          createdOrder.ID.String(),
-		OrderNumber:      createdOrder.OrderNumber,
-		AccessToken:      createdOrder.AccessToken,
-		TotalAmountToman: createdOrder.TotalAmountToman,
-		PaymentMethod:    string(createdOrder.PaymentMethod),
-		PaymentURL:       paymentURL,
-		ExpiresAt:        createdOrder.ExpiresAt,
+		OrderID:             createdOrder.ID.String(),
+		OrderNumber:         createdOrder.OrderNumber,
+		AccessToken:         createdOrder.AccessToken,
+		SubtotalAmountToman: createdOrder.SubtotalAmountToman,
+		DiscountAmountToman: createdOrder.DiscountAmountToman,
+		TotalAmountToman:    createdOrder.TotalAmountToman,
+		PaymentMethod:       string(createdOrder.PaymentMethod),
+		PaymentURL:          paymentURL,
+		ExpiresAt:           createdOrder.ExpiresAt,
 	}, nil
 }
 
@@ -246,6 +423,9 @@ func (l *OrderLogic) GetOrderDetail(orderIDOrNo string, token string) (*types.Or
 		OrderNumber:          order.OrderNumber,
 		Status:               string(order.Status),
 		DeliveryType:         string(order.DeliveryType),
+		SubtotalAmountToman:  order.SubtotalAmountToman,
+		DiscountAmountToman:  order.DiscountAmountToman,
+		CouponCode:           order.CouponCode,
 		TotalAmountToman:     order.TotalAmountToman,
 		CustomerPhone:        maskedPhone,
 		PaymentMethod:        string(order.PaymentMethod),

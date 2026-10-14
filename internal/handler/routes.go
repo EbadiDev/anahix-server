@@ -26,6 +26,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			authGroup.POST("/otp/send", custAuthHandler.SendOTP)
 			authGroup.POST("/otp/verify", custAuthHandler.VerifyOTP)
 			authGroup.GET("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.GetMe)
+			authGroup.PUT("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.UpdateMe)
 		}
 
 		// Public Storefront Endpoints
@@ -45,6 +46,25 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		payments := api.Group("/payments")
 		{
 			payments.GET("", pubHandler.ListPaymentMethods)
+		}
+
+		// Coupons
+		coupons := api.Group("/coupons")
+		{
+			coupons.POST("/validate", pubHandler.ValidateCoupon)
+		}
+
+		// Referrals & Affiliate
+		referrals := api.Group("/referrals")
+		{
+			referrals.GET("/stats", pubHandler.GetReferralStats)
+			referrals.POST("/transfer-to-wallet", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.TransferReferralCommission)
+		}
+
+		// Customer Wallet Ledger
+		wallet := api.Group("/wallet")
+		{
+			wallet.GET("/ledger", pubHandler.GetWalletLedger)
 		}
 
 		// Virtual Numbers (5SIM integration)
@@ -70,8 +90,19 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			protected.Use(middleware.AdminAuthMiddleware(svcCtx.Config.JWT.AccessSecret))
 			{
 				// Products & Inventory
+				protected.GET("/products", admHandler.ListProducts)
 				protected.POST("/products", admHandler.CreateProduct)
+				protected.PUT("/products/:id", admHandler.UpdateProduct)
+				protected.DELETE("/products/:id", admHandler.DeleteProduct)
 				protected.POST("/inventory/bulk-import", admHandler.BulkImportInventory)
+				protected.GET("/inventory", admHandler.ListInventory)
+				protected.GET("/inventory/stats", admHandler.GetInventoryStats)
+				protected.POST("/inventory/replace-key", admHandler.ReplaceKey)
+				protected.GET("/inventory/export", admHandler.ExportKeys)
+
+				// Coupons Management
+				protected.GET("/coupons", admHandler.ListCoupons)
+				protected.POST("/coupons", admHandler.CreateCoupon)
 
 				// Operator Order Queue Workbench
 				protected.GET("/orders", admHandler.ListQueueOrders)

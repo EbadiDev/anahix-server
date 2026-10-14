@@ -42,11 +42,19 @@ type PaymentMethodItem struct {
 	Description string `json:"description"`
 }
 
+type CartItemInput struct {
+	ProductID string `json:"product_id"`
+	Quantity  int    `json:"quantity"`
+}
+
 type CreateOrderRequest struct {
-	ProductID     string `json:"product_id" binding:"required"`
-	CustomerPhone string `json:"customer_phone" binding:"required"`
-	CustomerEmail string `json:"customer_email"`
-	PaymentMethod string `json:"payment_method" binding:"required"`
+	ProductID     string          `json:"product_id"`
+	Items         []CartItemInput `json:"items"`
+	CustomerPhone string          `json:"customer_phone" binding:"required"`
+	CustomerEmail string          `json:"customer_email"`
+	PaymentMethod string          `json:"payment_method" binding:"required"`
+	CouponCode    string          `json:"coupon_code"`
+	ReferralCode  string          `json:"referral_code"`
 
 	// Optional fields for Timed / On-Account Upgrade (Mode C)
 	CustomerAccountEmail    string `json:"customer_account_email"`
@@ -55,13 +63,15 @@ type CreateOrderRequest struct {
 }
 
 type CreateOrderResponse struct {
-	OrderID          string    `json:"order_id"`
-	OrderNumber      string    `json:"order_number"`
-	AccessToken      string    `json:"access_token"`
-	TotalAmountToman int64     `json:"total_amount_toman"`
-	PaymentMethod    string    `json:"payment_method"`
-	PaymentURL       string    `json:"payment_url"`
-	ExpiresAt        time.Time `json:"expires_at"`
+	OrderID             string    `json:"order_id"`
+	OrderNumber         string    `json:"order_number"`
+	AccessToken         string    `json:"access_token"`
+	SubtotalAmountToman int64     `json:"subtotal_amount_toman"`
+	DiscountAmountToman int64     `json:"discount_amount_toman"`
+	TotalAmountToman    int64     `json:"total_amount_toman"`
+	PaymentMethod       string    `json:"payment_method"`
+	PaymentURL          string    `json:"payment_url"`
+	ExpiresAt           time.Time `json:"expires_at"`
 }
 
 type DeliveredItemDTO struct {
@@ -73,16 +83,19 @@ type DeliveredItemDTO struct {
 }
 
 type OrderDetailResponse struct {
-	OrderID          string             `json:"order_id"`
-	OrderNumber      string             `json:"order_number"`
-	Status           string             `json:"status"`
-	DeliveryType     string             `json:"delivery_type"`
-	TotalAmountToman int64              `json:"total_amount_toman"`
-	CustomerPhone    string             `json:"customer_phone"`
-	PaymentMethod    string             `json:"payment_method"`
-	CreatedAt        time.Time          `json:"created_at"`
-	PaidAt           *time.Time         `json:"paid_at,omitempty"`
-	CompletedAt      *time.Time         `json:"completed_at,omitempty"`
+	OrderID             string             `json:"order_id"`
+	OrderNumber         string             `json:"order_number"`
+	Status              string             `json:"status"`
+	DeliveryType        string             `json:"delivery_type"`
+	SubtotalAmountToman int64              `json:"subtotal_amount_toman"`
+	DiscountAmountToman int64              `json:"discount_amount_toman"`
+	CouponCode          string             `json:"coupon_code,omitempty"`
+	TotalAmountToman    int64              `json:"total_amount_toman"`
+	CustomerPhone       string             `json:"customer_phone"`
+	PaymentMethod       string             `json:"payment_method"`
+	CreatedAt           time.Time          `json:"created_at"`
+	PaidAt              *time.Time         `json:"paid_at,omitempty"`
+	CompletedAt         *time.Time         `json:"completed_at,omitempty"`
 	DeliveredItems   []DeliveredItemDTO `json:"delivered_items,omitempty"`
 	
 	// Live 2FA Negotiation for timed personal upgrades
@@ -353,19 +366,32 @@ type VerifyOTPRequest struct {
 
 type VerifyOTPResponse struct {
 	Token    string                  `json:"token"`
+	IsNew    bool                    `json:"is_new"`
 	Customer CustomerProfileResponse `json:"customer"`
 }
 
 type CustomerProfileResponse struct {
-	ID           string    `json:"id"`
-	Phone        string    `json:"phone"`
-	Mobile       string    `json:"mobile"`
-	FullName     string    `json:"full_name"`
-	Email        string    `json:"email"`
-	BalanceToman int64     `json:"balance_toman"`
-	Balance      int64     `json:"balance"`
-	IsActive     bool      `json:"is_active"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                   string    `json:"id"`
+	Phone                string    `json:"phone"`
+	Mobile               string    `json:"mobile"`
+	FirstName            string    `json:"first_name,omitempty"`
+	LastName             string    `json:"last_name,omitempty"`
+	FullName             string    `json:"full_name"`
+	Email                string    `json:"email"`
+	BalanceToman         int64     `json:"balance_toman"`
+	Balance              int64     `json:"balance"`
+	ReferralCode         string    `json:"referral_code"`
+	ReferralBalanceToman int64     `json:"referral_balance_toman"`
+	IsActive             bool      `json:"is_active"`
+	IsAdmin              bool      `json:"is_admin"`
+	CreatedAt            time.Time `json:"created_at"`
+}
+
+type UpdateCustomerProfileRequest struct {
+	FirstName string `json:"first_name,omitempty"`
+	LastName  string `json:"last_name,omitempty"`
+	FullName  string `json:"full_name,omitempty"`
+	Email     string `json:"email,omitempty"`
 }
 
 // SMS Admin Settings DTOs
@@ -391,4 +417,129 @@ type SendTestSMSRequest struct {
 	Mobile  string `json:"mobile" binding:"required"`
 	Message string `json:"message"`
 }
+
+// Coupon DTOs
+
+type ValidateCouponRequest struct {
+	Code          string `json:"code" binding:"required"`
+	SubtotalToman int64  `json:"subtotal_toman" binding:"required"`
+	CustomerPhone string `json:"customer_phone"`
+	Category      string `json:"category"`
+}
+
+type ValidateCouponResponse struct {
+	Valid            bool   `json:"valid"`
+	Code             string `json:"code"`
+	DiscountType     string `json:"discount_type"`
+	DiscountValue    int64  `json:"discount_value"`
+	DiscountToman    int64  `json:"discount_toman"`
+	FinalAmountToman int64  `json:"final_amount_toman"`
+	Message          string `json:"message"`
+}
+
+type CouponListItem struct {
+	ID                  string     `json:"id"`
+	Code                string     `json:"code"`
+	DiscountType        string     `json:"discount_type"`
+	DiscountValue       int64      `json:"discount_value"`
+	MinOrderAmountToman int64      `json:"min_order_amount_toman"`
+	MaxDiscountToman    int64      `json:"max_discount_toman"`
+	PerUserLimit        int        `json:"per_user_limit"`
+	MaxUsage            int        `json:"max_usage"`
+	CurrentUsage        int        `json:"current_usage"`
+	Category            string     `json:"category"`
+	ExpiresAt           *time.Time `json:"expires_at,omitempty"`
+	IsActive            bool       `json:"is_active"`
+	CreatedAt           time.Time  `json:"created_at"`
+}
+
+type CreateCouponRequest struct {
+	Code                string     `json:"code" binding:"required"`
+	DiscountType        string     `json:"discount_type" binding:"required"`
+	DiscountValue       int64      `json:"discount_value" binding:"required"`
+	MinOrderAmountToman int64      `json:"min_order_amount_toman"`
+	MaxDiscountToman    int64      `json:"max_discount_toman"`
+	PerUserLimit        int        `json:"per_user_limit"`
+	MaxUsage            int        `json:"max_usage"`
+	Category            string     `json:"category"`
+	ExpiresAt           *time.Time `json:"expires_at"`
+	IsActive            bool       `json:"is_active"`
+}
+
+// Referral DTOs
+
+type ReferralStatsResponse struct {
+	ReferralCode               string  `json:"referral_code"`
+	ReferralURL                string  `json:"referral_url"`
+	CommissionRatePercent      float64 `json:"commission_rate_percent"`
+	TotalReferrals             int     `json:"total_referrals"`
+	SuccessfulOrders           int     `json:"successful_orders"`
+	TotalCommissionToman       int64   `json:"total_commission_toman"`
+	WithdrawableCommissionToman int64  `json:"withdrawable_commission_toman"`
+}
+
+type TransferCommissionResponse struct {
+	TransferredToman int64  `json:"transferred_toman"`
+	NewBalanceToman  int64  `json:"new_balance_toman"`
+	Message          string `json:"message"`
+}
+
+// Inventory Admin Management DTOs
+
+type InventoryItemDTO struct {
+	ID              string     `json:"id"`
+	ProductID       string     `json:"product_id"`
+	ProductTitle    string     `json:"product_title"`
+	ItemType        string     `json:"item_type"`
+	Status          string     `json:"status"`
+	CostUSD         float64    `json:"cost_usd"`
+	CostToman       int64      `json:"cost_toman"`
+	ExpirationDate  *time.Time `json:"expiration_date,omitempty"`
+	BatchTag        string     `json:"batch_tag,omitempty"`
+	ReservedOrderID *string    `json:"reserved_order_id,omitempty"`
+	DeliveredAt     *time.Time `json:"delivered_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	PayloadPreview  string     `json:"payload_preview,omitempty"`
+}
+
+type InventoryStatsResponse struct {
+	TotalCount          int64 `json:"total_count"`
+	AvailableCount      int64 `json:"available_count"`
+	ReservedCount       int64 `json:"reserved_count"`
+	SoldDeliveredCount  int64 `json:"sold_delivered_count"`
+	VoidCount           int64 `json:"void_count"`
+}
+
+type ListInventoryResponse struct {
+	Total int64              `json:"total"`
+	Items []InventoryItemDTO `json:"items"`
+}
+
+type ReplaceKeyRequest struct {
+	OrderID            string `json:"order_id" binding:"required"`
+	OldInventoryItemID string `json:"old_inventory_item_id" binding:"required"`
+	Reason             string `json:"reason"`
+}
+
+type ReplaceKeyResponse struct {
+	Success            bool   `json:"success"`
+	NewInventoryItemID string `json:"new_inventory_item_id"`
+	DeliveredPayload   string `json:"delivered_payload"`
+	Message            string `json:"message"`
+}
+
+// Customer Wallet Ledger DTO
+
+type WalletLedgerItemDTO struct {
+	ID                string    `json:"id"`
+	TransactionNumber string    `json:"transaction_number"`
+	Title             string    `json:"title"`
+	Type              string    `json:"type"` // deposit, store_order, virtual_number, refund, referral_bonus
+	AmountToman       int64     `json:"amount_toman"`
+	Status            string    `json:"status"`
+	PaymentMethod     string    `json:"payment_method"`
+	PaymentRefID      string    `json:"payment_ref_id,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 

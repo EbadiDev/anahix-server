@@ -13,6 +13,7 @@ const (
 	InventoryAvailable InventoryItemStatus = "available"
 	InventoryReserved  InventoryItemStatus = "reserved"
 	InventorySold      InventoryItemStatus = "sold"
+	InventoryDelivered InventoryItemStatus = "delivered"
 	InventoryVoid      InventoryItemStatus = "void"
 )
 
@@ -36,6 +37,12 @@ type InventoryItem struct {
 	ReservedOrderID  *uuid.UUID          `gorm:"type:uuid;index" json:"reserved_order_id,omitempty"`
 	ReservedUntil    *time.Time          `json:"reserved_until,omitempty"`
 	SoldAt           *time.Time          `json:"sold_at,omitempty"`
+	DeliveredAt      *time.Time          `json:"delivered_at,omitempty"`
+	ExpirationDate   *time.Time          `json:"expiration_date,omitempty"`
+
+	// Supplier cost tracking
+	CostUSD   float64 `gorm:"type:decimal(10,2);default:0" json:"cost_usd"`
+	CostToman int64   `gorm:"default:0" json:"cost_toman"`
 
 	// Note or batch identifier for suppliers
 	BatchTag string `gorm:"size:100" json:"batch_tag,omitempty"`

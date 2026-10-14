@@ -55,3 +55,22 @@ func (h *CustomerAuthHandler) GetMe(c *gin.Context) {
 	resp, err := l.GetMe(customerID)
 	result.HttpResult(c, resp, err)
 }
+
+// UpdateMe modifies customer profile info
+func (h *CustomerAuthHandler) UpdateMe(c *gin.Context) {
+	customerID := c.GetString("customer_id")
+	if customerID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.Unauthorized))
+		return
+	}
+
+	var req types.UpdateCustomerProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCustomerAuthLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.UpdateProfile(customerID, &req)
+	result.HttpResult(c, resp, err)
+}

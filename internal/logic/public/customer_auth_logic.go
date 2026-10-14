@@ -176,14 +176,17 @@ func (l *CustomerAuthLogic) VerifyOTP(req *types.VerifyOTPRequest) (*types.Verif
 	var customer model.Customer
 	err = l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", phone).First(&customer).Error
 	now := time.Now()
+	isNew := false
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			isNew = true
 			customer = model.Customer{
 				Phone:        phone,
-				FullName:     "کاربر آناهیکس",
+				FullName:     "",
 				BalanceToman: 0,
 				IsActive:     true,
+				IsAdmin:      phone == "09928376377",
 				LastLoginAt:  &now,
 			}
 			if err := l.svcCtx.DB.WithContext(l.ctx).Create(&customer).Error; err != nil {
@@ -195,6 +198,13 @@ func (l *CustomerAuthLogic) VerifyOTP(req *types.VerifyOTPRequest) (*types.Verif
 	} else {
 		if !customer.IsActive {
 			return nil, xerr.NewErrMsg("حساب کاربری شما مسدود شده است. با پشتیبانی تماس بگیرید")
+		}
+		if customer.FullName == "" || customer.FullName == "کاربر آناهیکس" {
+			isNew = true
+		}
+		if customer.Phone == "09928376377" && !customer.IsAdmin {
+			customer.IsAdmin = true
+			l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Update("is_admin", true)
 		}
 		customer.LastLoginAt = &now
 		l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Update("last_login_at", now)
@@ -208,19 +218,39 @@ func (l *CustomerAuthLogic) VerifyOTP(req *types.VerifyOTPRequest) (*types.Verif
 	}
 
 	return &types.VerifyOTPResponse{
-		Token: token,
-		Customer: types.CustomerProfileResponse{
-			ID:           customer.ID.String(),
-			Phone:        customer.Phone,
-			Mobile:       customer.Phone,
-			FullName:     customer.FullName,
-			Email:        customer.Email,
-			BalanceToman: customer.BalanceToman,
-			Balance:      customer.BalanceToman,
-			IsActive:     customer.IsActive,
-			CreatedAt:    customer.CreatedAt,
-		},
+		Token:    token,
+		IsNew:    isNew,
+		Customer: mapCustomerResponse(&customer),
 	}, nil
+}
+
+func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse {
+	firstName := customer.FirstName
+	lastName := customer.LastName
+	if firstName == "" && lastName == "" && customer.FullName != "" {
+		parts := strings.Fields(customer.FullName)
+		if len(parts) == 1 {
+			firstName = parts[0]
+		} else if len(parts) > 1 {
+			firstName = parts[0]
+			lastName = strings.Join(parts[1:], " ")
+		}
+	}
+
+	return types.CustomerProfileResponse{
+		ID:           customer.ID.String(),
+		Phone:        customer.Phone,
+		Mobile:       customer.Phone,
+		FirstName:    firstName,
+		LastName:     lastName,
+		FullName:     customer.FullName,
+		Email:        customer.Email,
+		BalanceToman: customer.BalanceToman,
+		Balance:      customer.BalanceToman,
+		IsActive:     customer.IsActive,
+		IsAdmin:      customer.IsAdmin,
+		CreatedAt:    customer.CreatedAt,
+	}
 }
 
 // GetMe returns current logged-in customer profile and wallet balance
@@ -238,15 +268,57 @@ func (l *CustomerAuthLogic) GetMe(customerIDStr string) (*types.CustomerProfileR
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
-	return &types.CustomerProfileResponse{
-		ID:           customer.ID.String(),
-		Phone:        customer.Phone,
-		Mobile:       customer.Phone,
-		FullName:     customer.FullName,
-		Email:        customer.Email,
-		BalanceToman: customer.BalanceToman,
-		Balance:      customer.BalanceToman,
-		IsActive:     customer.IsActive,
-		CreatedAt:    customer.CreatedAt,
-	}, nil
+	resp := mapCustomerResponse(&customer)
+	return &resp, nil
+}
+
+// UpdateProfile modifies editable fields for customer
+func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.UpdateCustomerProfileRequest) (*types.CustomerProfileResponse, error) {
+	custUUID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		return nil, xerr.NewErrMsg("شناسه مشتری نامعتبر است")
+	}
+
+	var customer model.Customer
+	if err := l.svcCtx.DB.WithContext(l.ctx).First(&customer, "id = ?", custUUID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, xerr.NewErrMsg("حساب کاربری یافت نشد")
+		}
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	updates := map[string]interface{}{}
+	if req.FirstName != "" {
+		trimmed := strings.TrimSpace(req.FirstName)
+		updates["first_name"] = trimmed
+		customer.FirstName = trimmed
+	}
+	if req.LastName != "" {
+		trimmed := strings.TrimSpace(req.LastName)
+		updates["last_name"] = trimmed
+		customer.LastName = trimmed
+	}
+	if req.FullName != "" {
+		trimmed := strings.TrimSpace(req.FullName)
+		updates["full_name"] = trimmed
+		customer.FullName = trimmed
+	} else if req.FirstName != "" || req.LastName != "" {
+		full := strings.TrimSpace(customer.FirstName + " " + customer.LastName)
+		updates["full_name"] = full
+		customer.FullName = full
+	}
+	if req.Email != "" {
+		trimmed := strings.TrimSpace(req.Email)
+		updates["email"] = trimmed
+		customer.Email = trimmed
+	}
+
+	if len(updates) > 0 {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Updates(updates).Error; err != nil {
+			return nil, xerr.NewErrCode(xerr.DatabaseError)
+		}
+	}
+
+	resp := mapCustomerResponse(&customer)
+	return &resp, nil
 }
