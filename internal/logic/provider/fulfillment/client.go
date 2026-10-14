@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -33,7 +34,13 @@ type Client struct {
 
 func NewClient(baseURL string) *Client {
 	if baseURL == "" {
-		baseURL = DefaultBaseURL
+		if envURL := os.Getenv("FULFILLMENT_PROVIDER_URL"); envURL != "" {
+			baseURL = envURL
+		} else if envURL := os.Getenv("INSIGHTX_API_URL"); envURL != "" {
+			baseURL = envURL
+		} else {
+			baseURL = DefaultBaseURL
+		}
 	}
 	return &Client{
 		baseURL: baseURL,
@@ -98,6 +105,11 @@ func (c *Client) GetHealth() (*HealthResponse, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("fulfillment provider health error (status %d): %s", resp.StatusCode, string(body))
+	}
 
 	var h HealthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&h); err != nil {
