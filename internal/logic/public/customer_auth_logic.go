@@ -86,16 +86,23 @@ func (l *CustomerAuthLogic) SendOTP(req *types.SendOTPRequest) (*types.SendOTPRe
 		switch s.Key {
 		case "smsir_api_key":
 			apiKey = strings.TrimSpace(s.Value)
-		case "smsir_template_id":
+		case "smsir_template_otp":
 			cleaned := strings.Trim(s.Value, "'\" \t\r\n")
 			if tid, err := strconv.Atoi(cleaned); err == nil && tid > 0 {
 				templateID = tid
+			}
+		case "smsir_template_id":
+			if templateID <= 0 {
+				cleaned := strings.Trim(s.Value, "'\" \t\r\n")
+				if tid, err := strconv.Atoi(cleaned); err == nil && tid > 0 {
+					templateID = tid
+				}
 			}
 		}
 	}
 
 	if templateID <= 0 {
-		return nil, fmt.Errorf("شناسه قالب پیامک در سیستم پیکربندی نشده است")
+		templateID = 100000 // default OTP pattern fallback
 	}
 
 	// 5. Send via SMS.ir client

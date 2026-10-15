@@ -25,6 +25,23 @@ func TestNormalizeMobile(t *testing.T) {
 	}
 }
 
+func TestSimulatorSendPattern(t *testing.T) {
+	c := NewClient()
+	ctx := context.Background()
+
+	// Empty apiKey should use simulator mode without failing
+	res, err := c.SendPattern(ctx, "", "09121234567", 100001, []VerifyParameter{
+		{Name: "Order", Value: "ORD-1234"},
+		{Name: "Prompt", Value: "لطفا کد را وارد کنید"},
+	})
+	if err != nil {
+		t.Fatalf("expected simulator pattern send to succeed, got: %v", err)
+	}
+	if res.MessageID == 0 {
+		t.Errorf("expected non-zero MessageID in simulator")
+	}
+}
+
 func TestSimulatorSendVerify(t *testing.T) {
 	c := NewClient()
 	ctx := context.Background()

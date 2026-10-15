@@ -100,8 +100,8 @@ func NormalizeMobile(mobile string) string {
 	return m
 }
 
-// SendVerify dispatches high-priority OTP code using SMS.ir Verify endpoint
-func (c *Client) SendVerify(ctx context.Context, apiKey string, mobile string, templateID int, code string) (*VerifyResultData, error) {
+// SendPattern dispatches high-priority pattern/template SMS using SMS.ir Verify endpoint
+func (c *Client) SendPattern(ctx context.Context, apiKey string, mobile string, templateID int, parameters []VerifyParameter) (*VerifyResultData, error) {
 	normMobile := NormalizeMobile(mobile)
 	if normMobile == "" {
 		return nil, ErrInvalidMobile
@@ -113,7 +113,11 @@ func (c *Client) SendVerify(ctx context.Context, apiKey string, mobile string, t
 
 	// Development / Mock fallback if no API key is provided
 	if strings.TrimSpace(apiKey) == "" {
-		log.Printf("📱 [SMS.ir SIMULATOR] Sent OTP Code [%s] to [%s] (Template: %d)", code, normMobile, templateID)
+		var paramStrs []string
+		for _, p := range parameters {
+			paramStrs = append(paramStrs, fmt.Sprintf("%s=%s", p.Name, p.Value))
+		}
+		log.Printf("📱 [SMS.ir SIMULATOR] Sent Pattern SMS to [%s] (Template: %d, Params: %s)", normMobile, templateID, strings.Join(paramStrs, ", "))
 		return &VerifyResultData{
 			MessageID: time.Now().Unix(),
 			Cost:      1.0,
@@ -123,9 +127,7 @@ func (c *Client) SendVerify(ctx context.Context, apiKey string, mobile string, t
 	payload := VerifyRequest{
 		Mobile:     normMobile,
 		TemplateID: templateID,
-		Parameters: []VerifyParameter{
-			{Name: "Code", Value: code},
-		},
+		Parameters: parameters,
 	}
 
 	bodyBytes, err := json.Marshal(payload)
@@ -167,8 +169,15 @@ func (c *Client) SendVerify(ctx context.Context, apiKey string, mobile string, t
 		return nil, fmt.Errorf("خطا در تحلیل دیتای پیامک تایید: %w", err)
 	}
 
-	log.Printf("✅ [SMS.ir] Verify OTP sent successfully to %s (MsgID: %d, Cost: %.1f)", normMobile, resultData.MessageID, resultData.Cost)
+	log.Printf("✅ [SMS.ir] Pattern SMS sent successfully to %s (Template: %d, MsgID: %d, Cost: %.1f)", normMobile, templateID, resultData.MessageID, resultData.Cost)
 	return &resultData, nil
+}
+
+// SendVerify dispatches high-priority OTP code using SMS.ir Verify endpoint
+func (c *Client) SendVerify(ctx context.Context, apiKey string, mobile string, templateID int, code string) (*VerifyResultData, error) {
+	return c.SendPattern(ctx, apiKey, mobile, templateID, []VerifyParameter{
+		{Name: "Code", Value: code},
+	})
 }
 
 // SendBulk dispatches text SMS to multiple recipients

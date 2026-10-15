@@ -61,19 +61,25 @@ func TestSMSSettingsLogic(t *testing.T) {
 	apiKey := ""
 	lineNum := "30004505000017"
 	templateID := "654321"
+	template2FA := "200001"
+	templateOrderComplete := "200002"
+	templateRenewal := "200003"
 	isSandbox := true
 
 	err = logic.UpdateSMSSettings(&types.UpdateSMSSettingsRequest{
-		APIKey:     &apiKey,
-		LineNumber: &lineNum,
-		TemplateID: &templateID,
-		IsSandbox:  &isSandbox,
+		APIKey:                &apiKey,
+		LineNumber:            &lineNum,
+		TemplateID:            &templateID,
+		Template2FA:           &template2FA,
+		TemplateOrderComplete: &templateOrderComplete,
+		TemplateRenewal:       &templateRenewal,
+		IsSandbox:             &isSandbox,
 	}, "admin")
 	if err != nil {
 		t.Fatalf("UpdateSMSSettings failed: %v", err)
 	}
 
-	// 3. Verify settings updated & masked
+	// 3. Verify settings updated & templates populated
 	respUpdated, err := logic.GetSMSSettings()
 	if err != nil {
 		t.Fatalf("GetSMSSettings after update failed: %v", err)
@@ -81,16 +87,53 @@ func TestSMSSettingsLogic(t *testing.T) {
 	if respUpdated.TemplateID != templateID {
 		t.Fatalf("expected templateID %s, got %s", templateID, respUpdated.TemplateID)
 	}
+	if respUpdated.Template2FA != template2FA {
+		t.Fatalf("expected template2FA %s, got %s", template2FA, respUpdated.Template2FA)
+	}
+	if respUpdated.TemplateOrderComplete != templateOrderComplete {
+		t.Fatalf("expected templateOrderComplete %s, got %s", templateOrderComplete, respUpdated.TemplateOrderComplete)
+	}
+	if respUpdated.TemplateRenewal != templateRenewal {
+		t.Fatalf("expected templateRenewal %s, got %s", templateRenewal, respUpdated.TemplateRenewal)
+	}
+	if len(respUpdated.Templates) != 4 {
+		t.Fatalf("expected 4 templates, got %d", len(respUpdated.Templates))
+	}
 	if respUpdated.LineNumber != lineNum {
 		t.Fatalf("expected lineNum %s, got %s", lineNum, respUpdated.LineNumber)
 	}
 
-	// 4. Send test SMS
+	// 4. Send test SMS for different templates
 	err = logic.SendTestSMS(&types.SendTestSMSRequest{
-		Mobile: "09121112233",
+		Mobile:       "09121112233",
+		TemplateType: "otp",
 	}, "admin")
 	if err != nil {
-		t.Fatalf("SendTestSMS failed: %v", err)
+		t.Fatalf("SendTestSMS (otp) failed: %v", err)
+	}
+
+	err = logic.SendTestSMS(&types.SendTestSMSRequest{
+		Mobile:       "09121112233",
+		TemplateType: "two_factor",
+	}, "admin")
+	if err != nil {
+		t.Fatalf("SendTestSMS (two_factor) failed: %v", err)
+	}
+
+	err = logic.SendTestSMS(&types.SendTestSMSRequest{
+		Mobile:       "09121112233",
+		TemplateType: "order_complete",
+	}, "admin")
+	if err != nil {
+		t.Fatalf("SendTestSMS (order_complete) failed: %v", err)
+	}
+
+	err = logic.SendTestSMS(&types.SendTestSMSRequest{
+		Mobile:       "09121112233",
+		TemplateType: "renewal",
+	}, "admin")
+	if err != nil {
+		t.Fatalf("SendTestSMS (renewal) failed: %v", err)
 	}
 
 	// 5. Verify action log

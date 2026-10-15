@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -172,6 +173,12 @@ func (l *OrderDeskLogic) RequestTwoFactor(orderIDStr string, req *types.RequestT
 		return xerr.NewErrCode(xerr.DatabaseError)
 	}
 
+	// Dispatch Pattern SMS to customer alerting them of 2FA request (bypasses blacklist)
+	if order.CustomerPhone != "" {
+		notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+		notifier.SendTwoFactorRequestAsync(order.CustomerPhone, order.OrderNumber, req.PromptMessage)
+	}
+
 	return nil
 }
 
@@ -201,6 +208,18 @@ func (l *OrderDeskLogic) CompleteOrder(orderIDStr string, req *types.CompleteOrd
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error; err != nil {
 		return xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	// Dispatch Pattern SMS upon completion and license delivery
+	if order.CustomerPhone != "" {
+		var item model.OrderItem
+		_ = l.svcCtx.DB.WithContext(l.ctx).Where("order_id = ?", order.ID).First(&item).Error
+		payload := item.DeliveredPayload
+		if payload == "" {
+			payload = item.ProductTitle
+		}
+		notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+		notifier.SendOrderCompletedAsync(order.CustomerPhone, order.OrderNumber, payload)
 	}
 
 	return nil

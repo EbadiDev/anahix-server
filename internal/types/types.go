@@ -502,26 +502,48 @@ type UpdateCustomerProfileRequest struct {
 
 // SMS Admin Settings DTOs
 
+type SMSTemplateItem struct {
+	Key         string   `json:"key"`          // "otp", "two_factor", "order_complete", "renewal"
+	Title       string   `json:"title"`        // e.g. "الگوی خوش‌آمدگویی و ورود OTP"
+	Description string   `json:"description"`  // e.g. "ارسال کد یکبار مصرف ورود و ثبت‌نام مشتریان"
+	TemplateID  string   `json:"template_id"`  // e.g. "100000"
+	Variables   []string `json:"variables"`    // e.g. ["Code"], ["Order", "Prompt"]
+	SampleText  string   `json:"sample_text"`  // e.g. "کد ورود به آناهیکس: #Code#"
+	IsEnabled   bool     `json:"is_enabled"`
+}
+
 type SMSSettingsResponse struct {
-	Provider    string   `json:"provider"`
-	APIKeyMask  string   `json:"api_key_mask"`
-	LineNumber  string   `json:"line_number"`
-	TemplateID  string   `json:"template_id"`
-	IsSandbox   bool     `json:"is_sandbox"`
-	LiveCredit  float64  `json:"live_credit"`
-	Lines       []string `json:"lines"`
+	Provider              string            `json:"provider"`
+	APIKeyMask            string            `json:"api_key_mask"`
+	LineNumber            string            `json:"line_number"`
+	TemplateID            string            `json:"template_id"`
+	TemplateOTP           string            `json:"template_otp"`
+	Template2FA           string            `json:"template_2fa"`
+	TemplateOrderComplete string            `json:"template_order_complete"`
+	TemplateRenewal       string            `json:"template_renewal"`
+	Templates             []SMSTemplateItem `json:"templates"`
+	IsSandbox             bool              `json:"is_sandbox"`
+	LiveCredit            float64           `json:"live_credit"`
+	Lines                 []string          `json:"lines"`
 }
 
 type UpdateSMSSettingsRequest struct {
-	APIKey     *string `json:"api_key"`
-	LineNumber *string `json:"line_number"`
-	TemplateID *string `json:"template_id"`
-	IsSandbox  *bool   `json:"is_sandbox"`
+	APIKey                *string `json:"api_key"`
+	LineNumber            *string `json:"line_number"`
+	TemplateID            *string `json:"template_id"`
+	TemplateOTP           *string `json:"template_otp"`
+	Template2FA           *string `json:"template_2fa"`
+	TemplateOrderComplete *string `json:"template_order_complete"`
+	TemplateRenewal       *string `json:"template_renewal"`
+	IsSandbox             *bool   `json:"is_sandbox"`
 }
 
 type SendTestSMSRequest struct {
-	Mobile  string `json:"mobile" binding:"required"`
-	Message string `json:"message"`
+	Mobile       string            `json:"mobile" binding:"required"`
+	TemplateType string            `json:"template_type"` // "otp", "two_factor", "order_complete", "renewal"
+	TemplateID   *int              `json:"template_id"`
+	Parameters   map[string]string `json:"parameters"`
+	Message      string            `json:"message"`
 }
 
 // Coupon DTOs

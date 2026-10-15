@@ -184,58 +184,84 @@ func seedInitialData(db *gorm.DB) {
 	}
 
 	// Seed System Settings (SMS Gateway & Notification configurations in DB)
-	var sysCount int64
-	db.Model(&model.SystemSetting{}).Where("category = ?", "sms").Count(&sysCount)
-	if sysCount == 0 {
-		smsSettings := []model.SystemSetting{
-			{
-				Category: "sms",
-				Key:      "sms_provider",
-				Value:    "smsir",
-				Type:     "string",
-				Desc:     "سرویس‌دهنده پیامک اصلی (smsir, mock)",
-			},
-			{
-				Category: "sms",
-				Key:      "smsir_api_key",
-				Value:    "",
-				Type:     "string",
-				Desc:     "کلید وب‌سرویس اختصاصی سامانه پیامکی SMS.ir",
-			},
-			{
-				Category: "sms",
-				Key:      "smsir_line_number",
-				Value:    "30004505000017",
-				Type:     "string",
-				Desc:     "شماره خط فرستنده اختصاصی پیامک",
-			},
-			{
-				Category: "sms",
-				Key:      "smsir_template_id",
-				Value:    "100000",
-				Type:     "string",
-				Desc:     "شناسه قالب پیامک تایید OTP در سامانه پیامک",
-			},
-			{
-				Category: "sms",
-				Key:      "smsir_is_sandbox",
-				Value:    "true",
-				Type:     "bool",
-				Desc:     "حالت آزمایشی سامانه پیامک (بدون کسر اعتبار)",
-			},
-			{
-				Category: "sms",
-				Key:      "sms_enabled",
-				Value:    "true",
-				Type:     "bool",
-				Desc:     "فعال بودن ارسال پیامک و کد تایید احراز هویت",
-			},
-		}
+	smsTemplateDefaults := []model.SystemSetting{
+		{
+			Category: "sms",
+			Key:      "sms_provider",
+			Value:    "smsir",
+			Type:     "string",
+			Desc:     "سرویس‌دهنده پیامک اصلی (smsir, mock)",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_api_key",
+			Value:    "",
+			Type:     "string",
+			Desc:     "کلید وب‌سرویس اختصاصی سامانه پیامکی SMS.ir",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_line_number",
+			Value:    "30004505000017",
+			Type:     "string",
+			Desc:     "شماره خط فرستنده اختصاصی پیامک",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_template_id",
+			Value:    "100000",
+			Type:     "string",
+			Desc:     "شناسه قالب پیامک تایید OTP در سامانه پیامک",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_template_otp",
+			Value:    "100000",
+			Type:     "string",
+			Desc:     "شناسه الگوی خوش‌آمدگویی و ورود OTP",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_template_2fa",
+			Value:    "100001",
+			Type:     "string",
+			Desc:     "شناسه الگوی اعلام درخواست کد ۲FA به مشتری",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_template_order_complete",
+			Value:    "100002",
+			Type:     "string",
+			Desc:     "شناسه الگوی تحویل لایسنس و تکمیل سفارش",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_template_renewal",
+			Value:    "100003",
+			Type:     "string",
+			Desc:     "شناسه الگوی یادآور تمدید اشتراک",
+		},
+		{
+			Category: "sms",
+			Key:      "smsir_is_sandbox",
+			Value:    "true",
+			Type:     "bool",
+			Desc:     "حالت آزمایشی سامانه پیامک (بدون کسر اعتبار)",
+		},
+		{
+			Category: "sms",
+			Key:      "sms_enabled",
+			Value:    "true",
+			Type:     "bool",
+			Desc:     "فعال بودن ارسال پیامک و کد تایید احراز هویت",
+		},
+	}
 
-		for _, s := range smsSettings {
+	for _, s := range smsTemplateDefaults {
+		var existing model.SystemSetting
+		if err := db.Where("category = ? AND `key` = ?", s.Category, s.Key).First(&existing).Error; err != nil {
 			db.Create(&s)
 		}
-		log.Println("🌱 Seeded SMS.ir gateway configurations into database (category: 'sms')")
 	}
 
 	// Seed Virtual Numbers Settings in DB

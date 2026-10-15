@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
+	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -445,6 +446,19 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 
 	if txErr != nil {
 		return nil, txErr
+	}
+
+	// Dispatch Pattern SMS upon instant delivery & completion
+	if createdOrder.Status == model.OrderCompleted && createdOrder.CustomerPhone != "" {
+		payload := ""
+		if len(createdOrder.Items) > 0 {
+			payload = createdOrder.Items[0].DeliveredPayload
+			if payload == "" {
+				payload = createdOrder.Items[0].ProductTitle
+			}
+		}
+		notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+		notifier.SendOrderCompletedAsync(createdOrder.CustomerPhone, createdOrder.OrderNumber, payload)
 	}
 
 	paymentURL := fmt.Sprintf("/checkout/pay/%s?token=%s", createdOrder.ID.String(), accessToken)
