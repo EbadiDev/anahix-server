@@ -74,6 +74,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.ReferralCommission{},
 		&model.Review{},
 		&model.ReviewHelpfulVote{},
+		&model.Ticket{},
+		&model.TicketMessage{},
 	)
 }
 

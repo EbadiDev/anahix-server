@@ -408,5 +408,6 @@ func seedInitialData(db *gorm.DB) {
 
 	// Seed Verified Buyer Reviews & Social Proof
 	seedReviewsData(db)
+	seedTicketsData(db)
 }
 

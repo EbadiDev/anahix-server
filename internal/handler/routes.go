@@ -15,8 +15,12 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 
 	pubHandler := public.NewPublicHandler(svcCtx)
 	custAuthHandler := public.NewCustomerAuthHandler(svcCtx)
+	pubTicketHandler := public.NewTicketHandler(svcCtx)
 	vnumHandler := public.NewVirtualNumberHandler(svcCtx)
 	admHandler := admin.NewAdminHandler(svcCtx)
+
+	// Static assets serving (Uploaded ticket screenshots and attachments)
+	r.Static("/uploads", "./uploads")
 
 	api := r.Group("/api/v1")
 	{
@@ -77,6 +81,19 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			wallet.GET("/ledger", pubHandler.GetWalletLedger)
 		}
 
+		// Customer Support & Real-time Ticketing (with attachments & SMS notifications)
+		tickets := api.Group("/tickets")
+		tickets.Use(middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret))
+		{
+			tickets.POST("", pubTicketHandler.CreateTicket)
+			tickets.GET("", pubTicketHandler.ListMyTickets)
+			tickets.GET("/:id", pubTicketHandler.GetTicketDetail)
+			tickets.POST("/:id/reply", pubTicketHandler.ReplyTicket)
+			tickets.POST("/:id/close", pubTicketHandler.CloseTicket)
+			tickets.POST("/:id/rate", pubTicketHandler.RateTicket)
+			tickets.POST("/upload", pubTicketHandler.UploadAttachment)
+		}
+
 		// Virtual Numbers (5SIM integration)
 		vnums := api.Group("/virtual-numbers")
 		{
@@ -121,6 +138,14 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.POST("/reviews/:id/reply", admHandler.ReplyReview)
 				protected.PUT("/reviews/:id/feature", admHandler.FeatureReview)
 				protected.DELETE("/reviews/:id", admHandler.DeleteReview)
+
+				// Support & Real Ticketing Engine Management
+				protected.GET("/tickets", admHandler.ListTickets)
+				protected.GET("/tickets/:id", admHandler.GetTicketDetail)
+				protected.POST("/tickets/:id/reply", admHandler.ReplyTicket)
+				protected.PUT("/tickets/:id", admHandler.UpdateTicket)
+				protected.DELETE("/tickets/:id", admHandler.DeleteTicket)
+				protected.POST("/tickets/upload", admHandler.UploadTicketAttachment)
 
 				// Operator Order Queue Workbench
 				protected.GET("/orders", admHandler.ListQueueOrders)

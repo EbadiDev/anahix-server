@@ -741,5 +741,132 @@ type AdminFeatureReviewRequest struct {
 	IsFeatured bool `json:"is_featured"`
 }
 
+// Support Ticket DTOs
+
+type TicketAttachmentDTO struct {
+	ID       string `json:"id"`
+	FileName string `json:"file_name"`
+	FileURL  string `json:"file_url"`
+	FileSize int64  `json:"file_size"`
+	MimeType string `json:"mime_type"`
+	IsImage  bool   `json:"is_image"`
+}
+
+type TicketMessageDTO struct {
+	ID          string                `json:"id"`
+	TicketID    string                `json:"ticket_id"`
+	SenderType  string                `json:"sender_type"` // customer, admin, system
+	SenderID    string                `json:"sender_id"`
+	SenderName  string                `json:"sender_name"`
+	Message     string                `json:"message"`
+	Attachments []TicketAttachmentDTO `json:"attachments"`
+	IsInternal  bool                  `json:"is_internal"`
+	CreatedAt   time.Time             `json:"created_at"`
+}
+
+type TicketItemDTO struct {
+	ID                  string     `json:"id"`
+	TicketNumber        string     `json:"ticket_number"`
+	CustomerID          string     `json:"customer_id"`
+	CustomerPhone       string     `json:"customer_phone"`
+	CustomerName        string     `json:"customer_name"`
+	CustomerEmail       string     `json:"customer_email"`
+	Subject             string     `json:"subject"`
+	Department          string     `json:"department"`
+	Priority            string     `json:"priority"`
+	Status              string     `json:"status"`
+	RelatedOrderNo      string     `json:"related_order_no,omitempty"`
+	NotifyViaSMS        bool       `json:"notify_via_sms"`
+	NotifyViaEmail      bool       `json:"notify_via_email"`
+	AssignedAdminName   string     `json:"assigned_admin_name,omitempty"`
+	SatisfactionRating  int        `json:"satisfaction_rating,omitempty"`
+	SatisfactionComment string     `json:"satisfaction_comment,omitempty"`
+	LastReplyAt         *time.Time `json:"last_reply_at,omitempty"`
+	LastReplyBy         string     `json:"last_reply_by"`
+	MessagesCount       int        `json:"messages_count"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+}
+
+type TicketDetailResponse struct {
+	Ticket   TicketItemDTO      `json:"ticket"`
+	Messages []TicketMessageDTO `json:"messages"`
+}
+
+type CreateTicketRequest struct {
+	Subject        string                `json:"subject" binding:"required"`
+	Department     string                `json:"department" binding:"required"`
+	Priority       string                `json:"priority"`
+	RelatedOrderNo string                `json:"related_order_no"`
+	NotifyViaSMS   *bool                 `json:"notify_via_sms"`
+	NotifyViaEmail *bool                 `json:"notify_via_email"`
+	Message        string                `json:"message" binding:"required"`
+	Attachments    []TicketAttachmentDTO `json:"attachments"`
+}
+
+type ReplyTicketRequest struct {
+	Message        string                `json:"message" binding:"required"`
+	Attachments    []TicketAttachmentDTO `json:"attachments"`
+	NotifyViaSMS   *bool                 `json:"notify_via_sms"`
+	NotifyViaEmail *bool                 `json:"notify_via_email"`
+}
+
+type AdminReplyTicketRequest struct {
+	Message        string                `json:"message" binding:"required"`
+	IsInternal     bool                  `json:"is_internal"`
+	Attachments    []TicketAttachmentDTO `json:"attachments"`
+	Status         string                `json:"status"` // optional updated status
+	NotifySMS      bool                  `json:"notify_sms"`
+	NotifyEmail    bool                  `json:"notify_email"`
+}
+
+type AdminUpdateTicketRequest struct {
+	Status            *string `json:"status"`
+	Priority          *string `json:"priority"`
+	Department        *string `json:"department"`
+	AssignedAdminName *string `json:"assigned_admin_name"`
+	NotifySMS         bool    `json:"notify_sms"`
+	NotifyEmail       bool    `json:"notify_email"`
+}
+
+type AdminTicketListRequest struct {
+	Status     string `form:"status"` // all, awaiting_admin, awaiting_user, in_progress, resolved, closed
+	Department string `form:"department"`
+	Priority   string `form:"priority"`
+	Search     string `form:"search"`
+	Page       int    `form:"page,default=1"`
+	PageSize   int    `form:"page_size,default=20"`
+}
+
+type AdminTicketStats struct {
+	Total         int64 `json:"total"`
+	AwaitingAdmin int64 `json:"awaiting_admin"`
+	AwaitingUser  int64 `json:"awaiting_user"`
+	InProgress    int64 `json:"in_progress"`
+	Resolved      int64 `json:"resolved"`
+	Closed        int64 `json:"closed"`
+}
+
+type AdminTicketListResponse struct {
+	Items []TicketItemDTO  `json:"items"`
+	Total int64            `json:"total"`
+	Stats AdminTicketStats `json:"stats"`
+}
+
+type RateTicketRequest struct {
+	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
+	Comment string `json:"comment"`
+}
+
+type UploadAttachmentResponse struct {
+	ID       string `json:"id"`
+	FileName string `json:"file_name"`
+	FileURL  string `json:"file_url"`
+	FileSize int64  `json:"file_size"`
+	MimeType string `json:"mime_type"`
+	IsImage  bool   `json:"is_image"`
+}
+
+
 
 

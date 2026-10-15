@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -699,5 +700,95 @@ func (h *AdminHandler) DeleteReview(c *gin.Context) {
 	}
 	result.HttpResult(c, gin.H{"deleted": true}, err)
 }
+
+// Support Tickets Admin Handlers
+
+func (h *AdminHandler) ListTickets(c *gin.Context) {
+	var req types.AdminTicketListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListTickets(&req)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) GetTicketDetail(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetTicketDetail(id)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) ReplyTicket(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminReplyTicketRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ReplyTicket(id, &req, adminUsername)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateTicket(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminUpdateTicketRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.UpdateTicket(id, &req, adminUsername)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) DeleteTicket(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.DeleteTicket(id, adminUsername)
+	result.HttpResult(c, gin.H{"deleted": true}, err)
+}
+
+func (h *AdminHandler) UploadTicketAttachment(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		result.ParamErrorResult(c, errors.New("فایل ارسال نشده است"))
+		return
+	}
+
+	l := admin.NewTicketAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.UploadAttachment(file)
+	result.HttpResult(c, resp, err)
+}
+
 
 
