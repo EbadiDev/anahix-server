@@ -19,6 +19,9 @@ type Customer struct {
 	ReferralBalanceToman int64          `gorm:"not null;default:0" json:"referral_balance_toman"`
 	IsActive             bool           `gorm:"default:true;index" json:"is_active"`
 	IsAdmin              bool           `gorm:"default:false;index" json:"is_admin"`
+	Tier                 string         `gorm:"size:30;default:'standard';index" json:"tier"` // standard, colleague, vip
+	BlockReason          string         `gorm:"size:255" json:"block_reason,omitempty"`
+	InternalNotes        string         `gorm:"type:text" json:"internal_notes,omitempty"`
 	LastLoginAt          *time.Time     `json:"last_login_at,omitempty"`
 
 	// Corporate / Legal Entity fields for official tax invoices

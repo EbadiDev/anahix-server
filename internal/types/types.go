@@ -1031,6 +1031,129 @@ type UpdateBillingSettingsRequest struct {
 	StampSignatureURL    *string `json:"stamp_signature_url"`
 }
 
+// -----------------------------------------------------------------------------
+// Admin 360-Degree Customer Management & Order Enhancement DTOs
+// -----------------------------------------------------------------------------
+
+type AdminCustomerListItem struct {
+	ID                   string     `json:"id"`
+	Phone                string     `json:"phone"`
+	FirstName            string     `json:"first_name,omitempty"`
+	LastName             string     `json:"last_name,omitempty"`
+	FullName             string     `json:"full_name"`
+	Email                string     `json:"email"`
+	Tier                 string     `json:"tier"` // "standard", "colleague", "vip"
+	BalanceToman         int64      `json:"balance_toman"`
+	ReferralCode         string     `json:"referral_code"`
+	ReferralBalanceToman int64      `json:"referral_balance_toman"`
+	TotalOrdersCount     int64      `json:"total_orders_count"`
+	StoreOrdersCount     int64      `json:"store_orders_count"`
+	VirtualOrdersCount   int64      `json:"virtual_orders_count"`
+	TotalSpentToman      int64      `json:"total_spent_toman"`
+	IsActive             bool       `json:"is_active"`
+	IsAdmin              bool       `json:"is_admin"`
+	BlockReason          string     `json:"block_reason,omitempty"`
+	InternalNotes        string     `json:"internal_notes,omitempty"`
+	LastLoginAt          *time.Time `json:"last_login_at,omitempty"`
+	IsOnline             bool       `json:"is_online"`
+	CreatedAt            time.Time  `json:"created_at"`
+}
+
+type AdminListCustomersRequest struct {
+	Search    string `form:"search" json:"search"`
+	Status    string `form:"status" json:"status"` // "all", "active", "blocked"
+	HasBalance *bool `form:"has_balance" json:"has_balance"`
+	Tier      string `form:"tier" json:"tier"`     // "all", "standard", "colleague", "vip"
+	SortBy    string `form:"sort_by" json:"sort_by"` // "created_at", "last_login_at", "total_spent", "balance"
+	SortOrder string `form:"sort_order" json:"sort_order"` // "desc", "asc"
+	Page      int    `form:"page,default=1" json:"page"`
+	PageSize  int    `form:"page_size,default=15" json:"page_size"`
+}
+
+type AdminListCustomersResponse struct {
+	Customers         []AdminCustomerListItem `json:"customers"`
+	Total             int64                   `json:"total"`
+	Page              int                     `json:"page"`
+	PageSize          int                     `json:"page_size"`
+	TotalActive       int64                   `json:"total_active"`
+	TotalBlocked      int64                   `json:"total_blocked"`
+	TotalVIP          int64                   `json:"total_vip"`
+	TotalBalanceToman int64                   `json:"total_balance_toman"`
+}
+
+type AdminCustomerOrderBrief struct {
+	ID               string              `json:"id"`
+	OrderNumber      string              `json:"order_number"`
+	Status           model.OrderStatus   `json:"status"`
+	DeliveryType     model.DeliveryType  `json:"delivery_type"`
+	TotalAmountToman int64               `json:"total_amount_toman"`
+	PaymentMethod    model.PaymentMethod `json:"payment_method"`
+	ProductTitle     string              `json:"product_title"`
+	DeliveredPayload string              `json:"delivered_payload,omitempty"`
+	Items            []model.OrderItem   `json:"items"`
+	CreatedAt        time.Time           `json:"created_at"`
+	PaidAt           *time.Time          `json:"paid_at,omitempty"`
+}
+
+type AdminReferredUserItem struct {
+	ID        string    `json:"id"`
+	Phone     string    `json:"phone"`
+	FullName  string    `json:"full_name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AdminCustomerAffiliateStats struct {
+	ReferralCode               string                    `json:"referral_code"`
+	ReferredCount              int64                     `json:"referred_count"`
+	TotalCommissionToman       int64                     `json:"total_commission_toman"`
+	TransferredCommissionToman int64                     `json:"transferred_commission_toman"`
+	AvailableCommissionToman   int64                     `json:"available_commission_toman"`
+	ReferredUsers              []AdminReferredUserItem   `json:"referred_users"`
+	Commissions                []model.ReferralCommission `json:"commissions"`
+}
+
+type AdminCustomerDetail360Response struct {
+	Customer          AdminCustomerListItem       `json:"customer"`
+	WalletTransactions []model.Transaction        `json:"wallet_transactions"`
+	Orders            []AdminCustomerOrderBrief   `json:"orders"`
+	VirtualNumbers    []model.VirtualNumberOrder  `json:"virtual_numbers"`
+	AffiliateStats    AdminCustomerAffiliateStats `json:"affiliate_stats"`
+	AuditLogs         []model.AdminActionLog      `json:"audit_logs"`
+}
+
+type AdminAdjustCustomerWalletRequest struct {
+	AmountToman int64  `json:"amount_toman" binding:"required,gt=0"`
+	Action      string `json:"action" binding:"required"` // "credit" (شارژ), "debit" (کسر)
+	Reason      string `json:"reason" binding:"required"` // Mandatory علت تراکنش
+}
+
+type AdminUpdateCustomerStatusRequest struct {
+	IsActive      *bool   `json:"is_active"`
+	BlockReason   *string `json:"block_reason"`
+	Tier          *string `json:"tier"`
+	InternalNotes *string `json:"internal_notes"`
+	FullName      *string `json:"full_name"`
+	Email         *string `json:"email"`
+}
+
+type AdminSendCustomerSMSRequest struct {
+	Message    string `json:"message" binding:"required"`
+	TemplateID *int   `json:"template_id"`
+}
+
+type AdminReplaceCustomerKeyRequest struct {
+	OrderItemID string `json:"order_item_id" binding:"required"`
+	NewPayload  string `json:"new_payload" binding:"required"`
+	Reason      string `json:"reason"`
+}
+
+type AdminUpdateOrderStatusRequest struct {
+	Status         model.OrderStatus `json:"status" binding:"required"`
+	OperatorNotes  string            `json:"operator_notes"`
+	RefundToWallet bool              `json:"refund_to_wallet"`
+}
+
+
 
 
 

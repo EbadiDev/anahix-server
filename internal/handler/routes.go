@@ -149,8 +149,18 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.DELETE("/tickets/:id", admHandler.DeleteTicket)
 				protected.POST("/tickets/upload", admHandler.UploadTicketAttachment)
 
-				// Operator Order Queue Workbench
+				// 360-Degree Customer Management
+				protected.GET("/customers", admHandler.ListCustomers)
+				protected.GET("/customers/:id", admHandler.GetCustomer360)
+				protected.POST("/customers/:id/wallet-adjust", admHandler.AdjustCustomerWallet)
+				protected.PUT("/customers/:id", admHandler.UpdateCustomer)
+				protected.POST("/customers/:id/sms", admHandler.SendCustomerSMS)
+				protected.POST("/customers/:id/replace-key", admHandler.ReplaceCustomerOrderKey)
+
+				// Operator Order Queue Workbench & Enhanced Orders Management
 				protected.GET("/orders", admHandler.ListQueueOrders)
+				protected.GET("/orders/all", admHandler.ListAllOrders)
+				protected.PUT("/orders/:order_id/status", admHandler.UpdateOrderStatus)
 				protected.GET("/orders/:order_id", admHandler.GetOrderDetail)
 				protected.POST("/orders/:order_id/2fa-request", admHandler.RequestTwoFactor)
 				protected.POST("/orders/:order_id/complete", admHandler.CompleteOrder)

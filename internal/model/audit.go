@@ -19,16 +19,19 @@ const (
 type TransactionType string
 
 const (
-	TxTypeStoreOrder    TransactionType = "store_order"
-	TxTypeVirtualNumber TransactionType = "virtual_number"
-	TxTypeDeposit       TransactionType = "deposit"
-	TxTypeRefund        TransactionType = "refund"
+	TxTypeStoreOrder          TransactionType = "store_order"
+	TxTypeVirtualNumber       TransactionType = "virtual_number"
+	TxTypeDeposit             TransactionType = "deposit"
+	TxTypeRefund              TransactionType = "refund"
+	TxTypeAdminAdjustment     TransactionType = "admin_adjustment"
+	TxTypeReferralCommission  TransactionType = "referral_commission"
 )
 
 // Transaction represents a financial or digital asset transaction record
 type Transaction struct {
 	ID                uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
 	TransactionNumber string            `gorm:"size:64;uniqueIndex;not null" json:"transaction_number"`
+	CustomerID        *uuid.UUID        `gorm:"type:uuid;index" json:"customer_id,omitempty"`
 	OrderID           *uuid.UUID        `gorm:"type:uuid;index" json:"order_id,omitempty"`
 	OrderType         TransactionType   `gorm:"size:32;not null;index" json:"order_type"`
 	CustomerPhone     string            `gorm:"size:32;index" json:"customer_phone"`

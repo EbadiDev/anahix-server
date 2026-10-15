@@ -820,6 +820,167 @@ func (h *AdminHandler) GetOrderInvoice(c *gin.Context) {
 	result.HttpResult(c, resp, err)
 }
 
+// ==========================================
+// 360-Degree Customer Management Handlers
+// ==========================================
+
+func (h *AdminHandler) ListCustomers(c *gin.Context) {
+	var req types.AdminListCustomersRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListCustomers(&req)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) GetCustomer360(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetCustomer360(id)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) AdjustCustomerWallet(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminAdjustCustomerWalletRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.AdjustWallet(id, &req, adminUsername)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateCustomer(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminUpdateCustomerStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.UpdateCustomer(id, &req, adminUsername)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) SendCustomerSMS(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminSendCustomerSMSRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.SendDirectSMS(id, &req, adminUsername)
+	result.HttpResult(c, gin.H{"sent": true, "message": "پیامک با موفقیت ارسال گردید"}, err)
+}
+
+func (h *AdminHandler) ReplaceCustomerOrderKey(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminReplaceCustomerKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
+	l := admin.NewCustomerAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.ReplaceOrderKey(id, &req, adminUsername)
+	result.HttpResult(c, gin.H{"updated": true, "message": "لایسنس با موفقیت جایگزین و بروزرسانی شد"}, err)
+}
+
+// ==========================================
+// Enhanced All-Orders Management Handlers
+// ==========================================
+
+func (h *AdminHandler) ListAllOrders(c *gin.Context) {
+	status := c.Query("status")
+	deliveryType := c.Query("delivery_type")
+	paymentMethod := c.Query("payment_method")
+	search := c.Query("search")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	l := admin.NewOrderDeskLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListAllOrders(status, deliveryType, paymentMethod, search, page, pageSize)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateOrderStatus(c *gin.Context) {
+	orderID := c.Param("order_id")
+	if orderID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminUpdateOrderStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	if adminUsername == "" {
+		adminUsername = "admin"
+	}
+
+	l := admin.NewOrderDeskLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateOrderStatus(orderID, &req, adminUsername)
+	result.HttpResult(c, gin.H{"updated": true, "message": "وضعیت سفارش با موفقیت به‌روزرسانی شد"}, err)
+}
+
+
 
 
 

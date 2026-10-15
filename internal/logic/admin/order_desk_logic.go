@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -201,6 +202,187 @@ func (l *OrderDeskLogic) CompleteOrder(orderIDStr string, req *types.CompleteOrd
 	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error; err != nil {
 		return xerr.NewErrCode(xerr.DatabaseError)
 	}
+
+	return nil
+}
+
+type AdminOrderListResult struct {
+	Orders   []AdminQueueOrderItem `json:"orders"`
+	Total    int64                 `json:"total"`
+	Page     int                   `json:"page"`
+	PageSize int                   `json:"page_size"`
+}
+
+// ListAllOrders lists all orders with advanced search and status/payment filters
+func (l *OrderDeskLogic) ListAllOrders(status string, deliveryType string, paymentMethod string, search string, page int, pageSize int) (*AdminOrderListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	query := l.svcCtx.DB.WithContext(l.ctx).Model(&model.Order{}).Preload("Items")
+
+	if status != "" && status != "all" {
+		query = query.Where("status = ?", status)
+	}
+
+	if deliveryType != "" && deliveryType != "all" {
+		query = query.Where("delivery_type = ?", deliveryType)
+	}
+
+	if paymentMethod != "" && paymentMethod != "all" {
+		query = query.Where("payment_method = ?", paymentMethod)
+	}
+
+	if term := strings.TrimSpace(search); term != "" {
+		sLike := "%" + term + "%"
+		query = query.Where("order_number LIKE ? OR customer_phone LIKE ? OR customer_email LIKE ?", sLike, sLike, sLike)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	var orders []model.Order
+	offset := (page - 1) * pageSize
+	if err := query.Order("created_at DESC").Limit(pageSize).Offset(offset).Find(&orders).Error; err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	resultList := make([]AdminQueueOrderItem, 0, len(orders))
+	for _, o := range orders {
+		item := AdminQueueOrderItem{
+			ID:                   o.ID,
+			OrderID:              o.ID.String(),
+			OrderNumber:          o.OrderNumber,
+			CustomerPhone:        o.CustomerPhone,
+			CustomerEmail:        o.CustomerEmail,
+			Status:               o.Status,
+			DeliveryType:         o.DeliveryType,
+			TotalAmountToman:     o.TotalAmountToman,
+			PaymentMethod:        o.PaymentMethod,
+			TwoFactorPrompt:      o.TwoFactorPrompt,
+			TwoFactorCode:        o.TwoFactorCode,
+			TwoFactorStatus:      o.TwoFactorStatus,
+			TwoFactorRequestedAt: o.TwoFactorRequestedAt,
+			CreatedAt:            o.CreatedAt,
+			UpdatedAt:            o.UpdatedAt,
+		}
+
+		if len(o.Items) > 0 {
+			item.ProductTitle = o.Items[0].ProductTitle
+		}
+
+		if o.CustomerCredentialsEncrypted != "" && l.svcCtx.Vault != nil {
+			dec, decErr := l.svcCtx.Vault.Decrypt(o.CustomerCredentialsEncrypted)
+			if decErr == nil && dec != "" {
+				item.CustomerCredentials = dec
+				parts := strings.Split(dec, " | ")
+				for _, part := range parts {
+					if strings.HasPrefix(part, "Email: ") {
+						item.AccountEmail = strings.TrimPrefix(part, "Email: ")
+					} else if strings.HasPrefix(part, "Pass: ") {
+						item.AccountPassword = strings.TrimPrefix(part, "Pass: ")
+					}
+				}
+			}
+		}
+
+		resultList = append(resultList, item)
+	}
+
+	return &AdminOrderListResult{
+		Orders:   resultList,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}, nil
+}
+
+// UpdateOrderStatus modifies order status and optionally triggers automated wallet refunds
+func (l *OrderDeskLogic) UpdateOrderStatus(orderIDStr string, req *types.AdminUpdateOrderStatusRequest, adminUsername string) error {
+	var order model.Order
+	orderUUID, err := uuid.Parse(orderIDStr)
+	if err == nil {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", orderUUID).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
+	} else {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("order_number = ?", orderIDStr).First(&order).Error; err != nil {
+			return xerr.NewErrCode(xerr.OrderNotFound)
+		}
+	}
+
+	oldStatus := order.Status
+	newStatus := req.Status
+	now := time.Now()
+
+	order.Status = newStatus
+	if req.OperatorNotes != "" {
+		order.OperatorNotes = req.OperatorNotes
+	}
+
+	if newStatus == model.OrderCompleted {
+		order.CompletedAt = &now
+		order.CustomerCredentialsEncrypted = "" // Zeroize
+	} else if newStatus == model.OrderPaid && order.PaidAt == nil {
+		order.PaidAt = &now
+	}
+
+	// Refund to wallet handling if requested
+	if req.RefundToWallet && (newStatus == model.OrderCancelled || newStatus == model.OrderRefunded) {
+		var customer model.Customer
+		foundCust := false
+		if order.CustomerID != nil {
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", *order.CustomerID).First(&customer).Error; err == nil {
+				foundCust = true
+			}
+		}
+		if !foundCust && order.CustomerPhone != "" {
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", order.CustomerPhone).First(&customer).Error; err == nil {
+				foundCust = true
+			}
+		}
+
+		if foundCust {
+			customer.BalanceToman += order.TotalAmountToman
+			_ = l.svcCtx.DB.WithContext(l.ctx).Save(&customer)
+
+			refundTx := model.Transaction{
+				ID:                uuid.New(),
+				TransactionNumber: fmt.Sprintf("TX-REF-%d-%s", time.Now().UnixNano(), uuid.New().String()[:6]),
+				CustomerID:        &customer.ID,
+				OrderID:           &order.ID,
+				CustomerPhone:     customer.Phone,
+				CustomerEmail:     customer.Email,
+				AmountToman:       order.TotalAmountToman,
+				OrderType:         model.TxTypeRefund,
+				PaymentPlatform:   model.PlatformBalance,
+				Status:            model.TxStatusSuccess,
+				Description:       fmt.Sprintf("استرداد وجه سفارش %s به کیف پول توسط مدیر %s", order.OrderNumber, adminUsername),
+			}
+			_ = l.svcCtx.DB.WithContext(l.ctx).Create(&refundTx)
+		}
+	}
+
+	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error; err != nil {
+		return xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	auditLog := model.AdminActionLog{
+		AdminUsername: adminUsername,
+		Action:        "update_order_status",
+		Resource:      "order",
+		ResourceID:    order.ID.String(),
+		Description:   fmt.Sprintf("تغییر وضعیت سفارش %s از %s به %s توسط مدیر %s (استرداد به کیف: %v)", order.OrderNumber, oldStatus, newStatus, adminUsername, req.RefundToWallet),
+	}
+	_ = l.svcCtx.DB.WithContext(l.ctx).Create(&auditLog)
 
 	return nil
 }
