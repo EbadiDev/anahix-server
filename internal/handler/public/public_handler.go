@@ -9,6 +9,7 @@ import (
 	"github.com/EbadiDev/anahix-server/pkg/result"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type PublicHandler struct {
@@ -244,6 +245,48 @@ func (h *PublicHandler) GetMyReviews(c *gin.Context) {
 	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.GetCustomerReviews(customerID, customerMobile)
 	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) GetOrderInvoice(c *gin.Context) {
+	orderIDOrNo := c.Param("order_id")
+	token := c.Query("token")
+
+	var currentCustUUID *uuid.UUID
+	if cidVal, exists := c.Get("customer_id"); exists {
+		if cidStr, ok := cidVal.(string); ok && cidStr != "" {
+			if u, err := uuid.Parse(cidStr); err == nil {
+				currentCustUUID = &u
+			}
+		}
+	}
+
+	l := public.NewInvoiceLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetOrderInvoice(orderIDOrNo, token, currentCustUUID, false)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) UpdateOrderBuyerInvoice(c *gin.Context) {
+	orderIDOrNo := c.Param("order_id")
+	token := c.Query("token")
+
+	var req types.UpdateBuyerInvoiceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	var currentCustUUID *uuid.UUID
+	if cidVal, exists := c.Get("customer_id"); exists {
+		if cidStr, ok := cidVal.(string); ok && cidStr != "" {
+			if u, err := uuid.Parse(cidStr); err == nil {
+				currentCustUUID = &u
+			}
+		}
+	}
+
+	l := public.NewInvoiceLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateOrderBuyerInvoice(orderIDOrNo, token, currentCustUUID, false, &req)
+	result.HttpResult(c, gin.H{"status": "ok", "message": "اطلاعات خریدار فاکتور رسمی با موفقیت به‌روزرسانی شد"}, err)
 }
 
 

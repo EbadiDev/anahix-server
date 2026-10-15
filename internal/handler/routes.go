@@ -55,6 +55,8 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			orders.POST("", pubHandler.CreateOrder)
 			orders.GET("/:order_id", pubHandler.GetOrderDetail)
 			orders.POST("/:order_id/2fa", pubHandler.SubmitTwoFactor)
+			orders.GET("/:order_id/invoice", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.GetOrderInvoice)
+			orders.PUT("/:order_id/invoice-buyer", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.UpdateOrderBuyerInvoice)
 		}
 
 		payments := api.Group("/payments")
@@ -152,6 +154,11 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.GET("/orders/:order_id", admHandler.GetOrderDetail)
 				protected.POST("/orders/:order_id/2fa-request", admHandler.RequestTwoFactor)
 				protected.POST("/orders/:order_id/complete", admHandler.CompleteOrder)
+				protected.GET("/orders/:order_id/invoice", admHandler.GetOrderInvoice)
+
+				// Official Corporate Billing & Tax Settings
+				protected.GET("/settings/billing", admHandler.GetBillingSettings)
+				protected.POST("/settings/billing", admHandler.UpdateBillingSettings)
 
 				// SMS Gateway (SMS.ir) Settings & Testing
 				protected.GET("/settings/sms", admHandler.GetSMSSettings)

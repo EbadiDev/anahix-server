@@ -7,6 +7,7 @@ import (
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
+	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/middleware"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -789,6 +790,36 @@ func (h *AdminHandler) UploadTicketAttachment(c *gin.Context) {
 	resp, err := l.UploadAttachment(file)
 	result.HttpResult(c, resp, err)
 }
+
+// ==========================================
+// Official Tax Invoice & Seller Billing Settings
+// ==========================================
+
+func (h *AdminHandler) GetBillingSettings(c *gin.Context) {
+	l := admin.NewBillingSettingsLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetBillingSettings()
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateBillingSettings(c *gin.Context) {
+	var req types.UpdateBillingSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewBillingSettingsLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateBillingSettings(&req)
+	result.HttpResult(c, gin.H{"status": "ok", "message": "تنظیمات فاکتور رسمی و مشخصات حقوقی با موفقیت به‌روزرسانی شد"}, err)
+}
+
+func (h *AdminHandler) GetOrderInvoice(c *gin.Context) {
+	orderIDOrNo := c.Param("order_id")
+	l := public.NewInvoiceLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetOrderInvoice(orderIDOrNo, "", nil, true)
+	result.HttpResult(c, resp, err)
+}
+
 
 
 

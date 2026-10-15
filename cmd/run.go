@@ -403,6 +403,138 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Seeded default promotional coupons ('WELCOME10', 'ANAHIX50', 'TELEGRAM20')")
 	}
 
+	// Seed Official Tax Billing & Corporate Seller Configurations
+	var billingCount int64
+	db.Model(&model.SystemSetting{}).Where("category = ?", "billing").Count(&billingCount)
+	if billingCount == 0 {
+		billingSettings := []model.SystemSetting{
+			{
+				Category: "billing",
+				Key:      "billing_seller_company_name",
+				Value:    "شرکت نوآوران داده‌پرداز آناهیکس (با مسئولیت محدود)",
+				Type:     "string",
+				Desc:     "نام رسمی شرکت / فروشگاه جهت صدور فاکتور رسمی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_brand_fa",
+				Value:    "فروشگاه تخصصی هوش مصنوعی آناهیکس",
+				Type:     "string",
+				Desc:     "نام تجاری یا برند فارسی فروشگاه",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_national_id",
+				Value:    "14012345678",
+				Type:     "string",
+				Desc:     "شناسه ملی شرکت فروشنده (۱۱ رقمی)",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_economic_code",
+				Value:    "411567891234",
+				Type:     "string",
+				Desc:     "کد اقتصادی ۱۲ رقمی سازمان امور مالیاتی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_registration_no",
+				Value:    "589234",
+				Type:     "string",
+				Desc:     "شماره ثبت شرکت در اداره ثبت شرکت‌ها",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_postal_code",
+				Value:    "1997834561",
+				Type:     "string",
+				Desc:     "کد پستی ۱۰ رقمی اقامتگاه قانونی فروشنده",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_province",
+				Value:    "تهران",
+				Type:     "string",
+				Desc:     "استان محل اقامتگاه قانونی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_city",
+				Value:    "تهران",
+				Type:     "string",
+				Desc:     "شهر محل اقامتگاه قانونی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_address",
+				Value:    "تهران، خیابان ولیعصر، تقاطع میرداماد، برج فناوری اطلاعات، طبقه ۵، واحد ۱۵",
+				Type:     "string",
+				Desc:     "نشانی دقیق پستی دفتر مرکزی فروشنده",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_phone",
+				Value:    "021-88776655",
+				Type:     "string",
+				Desc:     "تلفن تماس ثابت و پشتیبانی صدور فاکتور",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_email",
+				Value:    "billing@anahix.com",
+				Type:     "string",
+				Desc:     "ایمیل رسمی واحد مالی و صدور فاکتور",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_seller_website",
+				Value:    "https://anahix.com",
+				Type:     "string",
+				Desc:     "آدرس وب‌سایت رسمی فروشنده",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_vat_percent",
+				Value:    "10",
+				Type:     "number",
+				Desc:     "درصد قانونی مالیات بر ارزش افزوده (پیش‌فرض ۱۰ درصد)",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_vat_enabled",
+				Value:    "true",
+				Type:     "bool",
+				Desc:     "فعال بودن محاسبه مالیات بر ارزش افزوده در فاکتور رسمی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_invoice_notes",
+				Value:    "این صورتحساب مطابق با ماده ۱۹ قانون مالیات بر ارزش افزوده تنظیم گردیده و مشمول خرید رسمی شرکتی و سازمانی می‌باشد.",
+				Type:     "string",
+				Desc:     "متن توضیحات و ضوابط حقوقی ذیل فاکتور رسمی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_tax_memory_id",
+				Value:    "ANX-TAX-9824",
+				Type:     "string",
+				Desc:     "شناسه یکتای حافظه مالیاتی یا شماره مجوز رسمی",
+			},
+			{
+				Category: "billing",
+				Key:      "billing_stamp_signature_url",
+				Value:    "",
+				Type:     "string",
+				Desc:     "آدرس تصویر مهر و امضای دیجیتال رسمی فروشگاه",
+			},
+		}
+
+		for _, s := range billingSettings {
+			db.Create(&s)
+		}
+		log.Println("🌱 Seeded official tax billing configurations (category: 'billing')")
+	}
+
 	// Seed PDP rich configurations (SEO, Plans, Comparison Matrix, Guides, FAQs)
 	seedPDPData(db)
 

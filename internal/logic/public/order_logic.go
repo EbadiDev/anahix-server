@@ -289,6 +289,45 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			}
 		}
 
+		isCorp := false
+		if req.IsCorporate != nil {
+			isCorp = *req.IsCorporate
+		} else if payingCustomer != nil && payingCustomer.IsCorporate {
+			isCorp = true
+		}
+
+		compName := req.CompanyName
+		natID := req.NationalID
+		econCode := req.EconomicCode
+		regNo := req.RegistrationNo
+		postCode := req.PostalCode
+		buyerAddr := req.BuyerAddress
+		buyerPhone := req.BuyerPhone
+
+		if payingCustomer != nil && payingCustomer.IsCorporate {
+			if compName == "" {
+				compName = payingCustomer.CompanyName
+			}
+			if natID == "" {
+				natID = payingCustomer.NationalID
+			}
+			if econCode == "" {
+				econCode = payingCustomer.EconomicCode
+			}
+			if regNo == "" {
+				regNo = payingCustomer.RegistrationNo
+			}
+			if postCode == "" {
+				postCode = payingCustomer.PostalCode
+			}
+			if buyerAddr == "" {
+				buyerAddr = payingCustomer.CompanyAddress
+			}
+			if buyerPhone == "" {
+				buyerPhone = payingCustomer.CompanyPhone
+			}
+		}
+
 		order := model.Order{
 			ID:                           orderID,
 			OrderNumber:                  orderNumber,
@@ -308,6 +347,14 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			ExpiresAt:                    expiresAt,
 			CustomerCredentialsEncrypted: encryptedCreds,
 			TwoFactorStatus:              model.TwoFactorIdle,
+			IsCorporate:                  isCorp,
+			CompanyName:                  compName,
+			NationalID:                   natID,
+			EconomicCode:                 econCode,
+			RegistrationNo:               regNo,
+			PostalCode:                   postCode,
+			BuyerAddress:                 buyerAddr,
+			BuyerPhone:                   buyerPhone,
 			Items:                        orderItems,
 		}
 

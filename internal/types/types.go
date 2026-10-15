@@ -135,6 +135,16 @@ type CreateOrderRequest struct {
 	CustomerAccountEmail    string `json:"customer_account_email"`
 	CustomerAccountPassword string `json:"customer_account_password"`
 	CustomerNotes           string `json:"customer_notes"`
+
+	// Corporate / Legal entity invoice request
+	IsCorporate    *bool  `json:"is_corporate,omitempty"`
+	CompanyName    string `json:"company_name,omitempty"`
+	NationalID     string `json:"national_id,omitempty"`
+	EconomicCode   string `json:"economic_code,omitempty"`
+	RegistrationNo string `json:"registration_no,omitempty"`
+	PostalCode     string `json:"postal_code,omitempty"`
+	BuyerAddress   string `json:"buyer_address,omitempty"`
+	BuyerPhone     string `json:"buyer_phone,omitempty"`
 }
 
 type CreateOrderResponse struct {
@@ -459,7 +469,18 @@ type CustomerProfileResponse struct {
 	ReferralBalanceToman int64     `json:"referral_balance_toman"`
 	IsActive             bool      `json:"is_active"`
 	IsAdmin              bool      `json:"is_admin"`
-	CreatedAt            time.Time `json:"created_at"`
+
+	// Corporate / Legal entity profile
+	IsCorporate    bool   `json:"is_corporate"`
+	CompanyName    string `json:"company_name,omitempty"`
+	NationalID     string `json:"national_id,omitempty"`
+	EconomicCode   string `json:"economic_code,omitempty"`
+	RegistrationNo string `json:"registration_no,omitempty"`
+	PostalCode     string `json:"postal_code,omitempty"`
+	CompanyAddress string `json:"company_address,omitempty"`
+	CompanyPhone   string `json:"company_phone,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type UpdateCustomerProfileRequest struct {
@@ -467,6 +488,16 @@ type UpdateCustomerProfileRequest struct {
 	LastName  string `json:"last_name,omitempty"`
 	FullName  string `json:"full_name,omitempty"`
 	Email     string `json:"email,omitempty"`
+
+	// Corporate / Legal entity update
+	IsCorporate    *bool  `json:"is_corporate,omitempty"`
+	CompanyName    string `json:"company_name,omitempty"`
+	NationalID     string `json:"national_id,omitempty"`
+	EconomicCode   string `json:"economic_code,omitempty"`
+	RegistrationNo string `json:"registration_no,omitempty"`
+	PostalCode     string `json:"postal_code,omitempty"`
+	CompanyAddress string `json:"company_address,omitempty"`
+	CompanyPhone   string `json:"company_phone,omitempty"`
 }
 
 // SMS Admin Settings DTOs
@@ -866,6 +897,140 @@ type UploadAttachmentResponse struct {
 	MimeType string `json:"mime_type"`
 	IsImage  bool   `json:"is_image"`
 }
+
+// ==========================================
+// Official Tax Invoice & Billing DTOs
+// ==========================================
+
+type SellerBillingInfo struct {
+	CompanyName       string `json:"company_name"`
+	BrandFA           string `json:"brand_fa"`
+	NationalID        string `json:"national_id"`
+	EconomicCode      string `json:"economic_code"`
+	RegistrationNo    string `json:"registration_no"`
+	PostalCode        string `json:"postal_code"`
+	Province          string `json:"province"`
+	City              string `json:"city"`
+	Address           string `json:"address"`
+	Phone             string `json:"phone"`
+	Email             string `json:"email"`
+	Website           string `json:"website"`
+	TaxMemoryID       string `json:"tax_memory_id"`
+	StampSignatureURL string `json:"stamp_signature_url"`
+}
+
+type BuyerBillingInfo struct {
+	IsCorporate    bool   `json:"is_corporate"`
+	CompanyName    string `json:"company_name"`
+	FullName       string `json:"full_name"`
+	NationalID     string `json:"national_id"`
+	EconomicCode   string `json:"economic_code"`
+	RegistrationNo string `json:"registration_no"`
+	PostalCode     string `json:"postal_code"`
+	Address        string `json:"address"`
+	Phone          string `json:"phone"`
+	Email          string `json:"email"`
+}
+
+type InvoiceItemDTO struct {
+	RowIndex                int    `json:"row_index"`
+	ProductID               string `json:"product_id"`
+	ProductTitle            string `json:"product_title"`
+	ProductSlug             string `json:"product_slug"`
+	DeliveryType            string `json:"delivery_type"`
+	Quantity                int    `json:"quantity"`
+	UnitPriceToman          int64  `json:"unit_price_toman"`
+	SubtotalToman           int64  `json:"subtotal_toman"`
+	DiscountToman           int64  `json:"discount_toman"`
+	TotalAfterDiscountToman int64  `json:"total_after_discount_toman"`
+	TaxRatePercent          int    `json:"tax_rate_percent"`
+	TaxToman                int64  `json:"tax_toman"`
+	FinalAmountToman        int64  `json:"final_amount_toman"`
+}
+
+type OfficialInvoiceResponse struct {
+	InvoiceNumber           string            `json:"invoice_number"`
+	OrderNumber             string            `json:"order_number"`
+	OrderID                 string            `json:"order_id"`
+	InvoiceType             string            `json:"invoice_type"`    // "proforma" or "official"
+	InvoiceTypeFA           string            `json:"invoice_type_fa"` // "پیش‌فاکتور رسمی" or "صورتحساب رسمی فروش کالا و خدمات"
+	IssueDate               time.Time         `json:"issue_date"`
+	IssueDateJalali         string            `json:"issue_date_jalali"`
+	PaidAt                  *time.Time        `json:"paid_at,omitempty"`
+	PaidAtJalali            string            `json:"paid_at_jalali,omitempty"`
+	PaymentMethod           string            `json:"payment_method"`
+	PaymentMethodFA         string            `json:"payment_method_fa"`
+	PaymentRefID            string            `json:"payment_ref_id,omitempty"`
+	PaymentAuthority        string            `json:"payment_authority,omitempty"`
+	PaymentStatus           string            `json:"payment_status"`
+	PaymentStatusFA         string            `json:"payment_status_fa"`
+	Seller                  SellerBillingInfo `json:"seller"`
+	Buyer                   BuyerBillingInfo  `json:"buyer"`
+	Items                   []InvoiceItemDTO  `json:"items"`
+	SubtotalToman           int64             `json:"subtotal_toman"`
+	TotalDiscountToman      int64             `json:"total_discount_toman"`
+	AmountAfterDiscountToman int64            `json:"amount_after_discount_toman"`
+	TaxRatePercent          int               `json:"tax_rate_percent"`
+	TotalTaxToman           int64             `json:"total_tax_toman"`
+	FinalTotalToman         int64             `json:"final_total_toman"`
+	FinalTotalTomanWords    string            `json:"final_total_toman_words"`
+	FinalTotalRials         int64             `json:"final_total_rials"`
+	Notes                   string            `json:"notes"`
+}
+
+type UpdateBuyerInvoiceRequest struct {
+	IsCorporate    bool   `json:"is_corporate"`
+	CompanyName    string `json:"company_name"`
+	FullName       string `json:"full_name"`
+	NationalID     string `json:"national_id"`
+	EconomicCode   string `json:"economic_code"`
+	RegistrationNo string `json:"registration_no"`
+	PostalCode     string `json:"postal_code"`
+	Address        string `json:"address"`
+	Phone          string `json:"phone"`
+	Email          string `json:"email"`
+}
+
+type BillingSettingsDTO struct {
+	SellerCompanyName string `json:"seller_company_name"`
+	SellerBrandFA     string `json:"seller_brand_fa"`
+	SellerNationalID  string `json:"seller_national_id"`
+	SellerEconomicCode string `json:"seller_economic_code"`
+	SellerRegistrationNo string `json:"seller_registration_no"`
+	SellerPostalCode  string `json:"seller_postal_code"`
+	SellerProvince    string `json:"seller_province"`
+	SellerCity        string `json:"seller_city"`
+	SellerAddress     string `json:"seller_address"`
+	SellerPhone       string `json:"seller_phone"`
+	SellerEmail       string `json:"seller_email"`
+	SellerWebsite     string `json:"seller_website"`
+	VATPercent        int    `json:"vat_percent"`
+	VATEnabled        bool   `json:"vat_enabled"`
+	InvoiceNotes      string `json:"invoice_notes"`
+	TaxMemoryID       string `json:"tax_memory_id"`
+	StampSignatureURL string `json:"stamp_signature_url"`
+}
+
+type UpdateBillingSettingsRequest struct {
+	SellerCompanyName    *string `json:"seller_company_name"`
+	SellerBrandFA        *string `json:"seller_brand_fa"`
+	SellerNationalID     *string `json:"seller_national_id"`
+	SellerEconomicCode   *string `json:"seller_economic_code"`
+	SellerRegistrationNo *string `json:"seller_registration_no"`
+	SellerPostalCode     *string `json:"seller_postal_code"`
+	SellerProvince       *string `json:"seller_province"`
+	SellerCity           *string `json:"seller_city"`
+	SellerAddress        *string `json:"seller_address"`
+	SellerPhone          *string `json:"seller_phone"`
+	SellerEmail          *string `json:"seller_email"`
+	SellerWebsite        *string `json:"seller_website"`
+	VATPercent           *int    `json:"vat_percent"`
+	VATEnabled           *bool   `json:"vat_enabled"`
+	InvoiceNotes         *string `json:"invoice_notes"`
+	TaxMemoryID          *string `json:"tax_memory_id"`
+	StampSignatureURL    *string `json:"stamp_signature_url"`
+}
+
 
 
 

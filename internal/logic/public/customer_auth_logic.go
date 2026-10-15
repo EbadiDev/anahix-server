@@ -238,18 +238,28 @@ func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse
 	}
 
 	return types.CustomerProfileResponse{
-		ID:           customer.ID.String(),
-		Phone:        customer.Phone,
-		Mobile:       customer.Phone,
-		FirstName:    firstName,
-		LastName:     lastName,
-		FullName:     customer.FullName,
-		Email:        customer.Email,
-		BalanceToman: customer.BalanceToman,
-		Balance:      customer.BalanceToman,
-		IsActive:     customer.IsActive,
-		IsAdmin:      customer.IsAdmin,
-		CreatedAt:    customer.CreatedAt,
+		ID:                   customer.ID.String(),
+		Phone:                customer.Phone,
+		Mobile:               customer.Phone,
+		FirstName:            firstName,
+		LastName:             lastName,
+		FullName:             customer.FullName,
+		Email:                customer.Email,
+		BalanceToman:         customer.BalanceToman,
+		Balance:              customer.BalanceToman,
+		ReferralCode:         customer.ReferralCode,
+		ReferralBalanceToman: customer.ReferralBalanceToman,
+		IsActive:             customer.IsActive,
+		IsAdmin:              customer.IsAdmin,
+		IsCorporate:          customer.IsCorporate,
+		CompanyName:          customer.CompanyName,
+		NationalID:           customer.NationalID,
+		EconomicCode:         customer.EconomicCode,
+		RegistrationNo:       customer.RegistrationNo,
+		PostalCode:           customer.PostalCode,
+		CompanyAddress:       customer.CompanyAddress,
+		CompanyPhone:         customer.CompanyPhone,
+		CreatedAt:            customer.CreatedAt,
 	}
 }
 
@@ -311,6 +321,45 @@ func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.Updat
 		trimmed := strings.TrimSpace(req.Email)
 		updates["email"] = trimmed
 		customer.Email = trimmed
+	}
+	if req.IsCorporate != nil {
+		updates["is_corporate"] = *req.IsCorporate
+		customer.IsCorporate = *req.IsCorporate
+	}
+	if req.CompanyName != "" {
+		trimmed := strings.TrimSpace(req.CompanyName)
+		updates["company_name"] = trimmed
+		customer.CompanyName = trimmed
+	}
+	if req.NationalID != "" {
+		trimmed := strings.TrimSpace(req.NationalID)
+		updates["national_id"] = trimmed
+		customer.NationalID = trimmed
+	}
+	if req.EconomicCode != "" {
+		trimmed := strings.TrimSpace(req.EconomicCode)
+		updates["economic_code"] = trimmed
+		customer.EconomicCode = trimmed
+	}
+	if req.RegistrationNo != "" {
+		trimmed := strings.TrimSpace(req.RegistrationNo)
+		updates["registration_no"] = trimmed
+		customer.RegistrationNo = trimmed
+	}
+	if req.PostalCode != "" {
+		trimmed := strings.TrimSpace(req.PostalCode)
+		updates["postal_code"] = trimmed
+		customer.PostalCode = trimmed
+	}
+	if req.CompanyAddress != "" {
+		trimmed := strings.TrimSpace(req.CompanyAddress)
+		updates["company_address"] = trimmed
+		customer.CompanyAddress = trimmed
+	}
+	if req.CompanyPhone != "" {
+		trimmed := strings.TrimSpace(req.CompanyPhone)
+		updates["company_phone"] = trimmed
+		customer.CompanyPhone = trimmed
 	}
 
 	if len(updates) > 0 {

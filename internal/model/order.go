@@ -80,6 +80,17 @@ type Order struct {
 	OperatorNotes      string     `gorm:"type:text" json:"operator_notes,omitempty"`
 	CardReceiptURL     string     `gorm:"size:512" json:"card_receipt_url,omitempty"`
 
+	// Official Tax Invoice & Corporate Billing Fields
+	IsCorporate    bool   `gorm:"default:false" json:"is_corporate"`
+	CompanyName    string `gorm:"size:200" json:"company_name,omitempty"`
+	NationalID     string `gorm:"size:30" json:"national_id,omitempty"`
+	EconomicCode   string `gorm:"size:30" json:"economic_code,omitempty"`
+	RegistrationNo string `gorm:"size:30" json:"registration_no,omitempty"`
+	PostalCode     string `gorm:"size:20" json:"postal_code,omitempty"`
+	BuyerAddress   string `gorm:"size:300" json:"buyer_address,omitempty"`
+	BuyerPhone     string `gorm:"size:30" json:"buyer_phone,omitempty"`
+	TaxAmountToman int64  `gorm:"default:0" json:"tax_amount_toman"`
+
 	Items []OrderItem `gorm:"foreignKey:OrderID" json:"items"`
 
 	CreatedAt time.Time      `json:"created_at"`

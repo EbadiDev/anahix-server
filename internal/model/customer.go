@@ -20,6 +20,17 @@ type Customer struct {
 	IsActive             bool           `gorm:"default:true;index" json:"is_active"`
 	IsAdmin              bool           `gorm:"default:false;index" json:"is_admin"`
 	LastLoginAt          *time.Time     `json:"last_login_at,omitempty"`
+
+	// Corporate / Legal Entity fields for official tax invoices
+	IsCorporate    bool   `gorm:"default:false" json:"is_corporate"`
+	CompanyName    string `gorm:"size:200" json:"company_name,omitempty"`
+	NationalID     string `gorm:"size:30" json:"national_id,omitempty"`
+	EconomicCode   string `gorm:"size:30" json:"economic_code,omitempty"`
+	RegistrationNo string `gorm:"size:30" json:"registration_no,omitempty"`
+	PostalCode     string `gorm:"size:20" json:"postal_code,omitempty"`
+	CompanyAddress string `gorm:"size:300" json:"company_address,omitempty"`
+	CompanyPhone   string `gorm:"size:30" json:"company_phone,omitempty"`
+
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedAt            gorm.DeletedAt `gorm:"index" json:"-"`
