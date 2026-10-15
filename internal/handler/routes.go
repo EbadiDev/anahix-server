@@ -17,7 +17,9 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 	custAuthHandler := public.NewCustomerAuthHandler(svcCtx)
 	pubTicketHandler := public.NewTicketHandler(svcCtx)
 	vnumHandler := public.NewVirtualNumberHandler(svcCtx)
+	pubContentHandler := public.NewContentHandler(svcCtx)
 	admHandler := admin.NewAdminHandler(svcCtx)
+	admContentHandler := admin.NewContentAdminHandler(svcCtx)
 
 	// Static assets serving (Uploaded ticket screenshots and attachments)
 	r.Static("/uploads", "./uploads")
@@ -94,6 +96,30 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			tickets.POST("/:id/close", pubTicketHandler.CloseTicket)
 			tickets.POST("/:id/rate", pubTicketHandler.RateTicket)
 			tickets.POST("/upload", pubTicketHandler.UploadAttachment)
+		}
+
+		// Content Taxonomies (Categories, Templates & Service Targets)
+		content := api.Group("/content")
+		{
+			content.GET("/categories", pubContentHandler.ListCategories)
+			content.GET("/templates", pubContentHandler.ListTemplates)
+			content.GET("/services", pubContentHandler.ListServices)
+		}
+
+		// Blog Articles (SEO & Tutorials)
+		articles := api.Group("/articles")
+		{
+			articles.GET("", pubContentHandler.ListArticles)
+			articles.GET("/:slug", pubContentHandler.GetArticleDetail)
+			articles.POST("/:slug/comments", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubContentHandler.SubmitComment)
+		}
+
+		// Knowledge Base / Help Center (Guides, Troubleshooting & SLAs)
+		help := api.Group("/help")
+		{
+			help.GET("/guides", pubContentHandler.ListHelpGuides)
+			help.GET("/guides/:slug", pubContentHandler.GetHelpGuideDetail)
+			help.POST("/guides/:slug/vote", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubContentHandler.VoteHelpGuide)
 		}
 
 		// Virtual Numbers (5SIM integration)
@@ -191,6 +217,38 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				// Audit & Transaction Logs
 				protected.GET("/logs/transactions", admHandler.ListTransactions)
 				protected.GET("/logs/actions", admHandler.ListAdminActions)
+
+				// Blog Articles & Knowledge Base Management
+				protected.GET("/articles", admContentHandler.ListArticles)
+				protected.GET("/articles/:id", admContentHandler.GetArticle)
+				protected.POST("/articles", admContentHandler.CreateArticle)
+				protected.PUT("/articles/:id", admContentHandler.UpdateArticle)
+				protected.DELETE("/articles/:id", admContentHandler.DeleteArticle)
+
+				protected.GET("/help/guides", admContentHandler.ListHelpGuides)
+				protected.GET("/help/guides/:id", admContentHandler.GetHelpGuide)
+				protected.POST("/help/guides", admContentHandler.CreateHelpGuide)
+				protected.PUT("/help/guides/:id", admContentHandler.UpdateHelpGuide)
+				protected.DELETE("/help/guides/:id", admContentHandler.DeleteHelpGuide)
+
+				protected.GET("/content/categories", admContentHandler.ListCategories)
+				protected.POST("/content/categories", admContentHandler.CreateCategory)
+				protected.PUT("/content/categories/:id", admContentHandler.UpdateCategory)
+				protected.DELETE("/content/categories/:id", admContentHandler.DeleteCategory)
+
+				protected.GET("/content/comments", admContentHandler.ListComments)
+				protected.PUT("/content/comments/:id", admContentHandler.UpdateCommentStatus)
+				protected.DELETE("/content/comments/:id", admContentHandler.DeleteComment)
+
+				protected.GET("/content/templates", admContentHandler.ListTemplates)
+				protected.POST("/content/templates", admContentHandler.CreateTemplate)
+				protected.PUT("/content/templates/:id", admContentHandler.UpdateTemplate)
+				protected.DELETE("/content/templates/:id", admContentHandler.DeleteTemplate)
+
+				protected.GET("/content/services", admContentHandler.ListServices)
+				protected.POST("/content/services", admContentHandler.CreateServiceTarget)
+				protected.PUT("/content/services/:id", admContentHandler.UpdateServiceTarget)
+				protected.DELETE("/content/services/:id", admContentHandler.DeleteServiceTarget)
 
 				// Backward-compatibility aliases
 				protected.GET("/settings/5sim", admHandler.GetVirtualNumberSettings)

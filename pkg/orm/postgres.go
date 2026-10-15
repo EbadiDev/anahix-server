@@ -76,6 +76,13 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.ReviewHelpfulVote{},
 		&model.Ticket{},
 		&model.TicketMessage{},
+		&model.ContentCategory{},
+		&model.Article{},
+		&model.HelpGuide{},
+		&model.ArticleComment{},
+		&model.GuideFeedback{},
+		&model.ContentTemplate{},
+		&model.ServiceTarget{},
 	)
 }
 
