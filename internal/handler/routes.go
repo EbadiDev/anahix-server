@@ -27,6 +27,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			authGroup.POST("/otp/verify", custAuthHandler.VerifyOTP)
 			authGroup.GET("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.GetMe)
 			authGroup.PUT("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.UpdateMe)
+			authGroup.GET("/my-reviews", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.GetMyReviews)
 		}
 
 		// Public Storefront Endpoints
@@ -34,6 +35,15 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		{
 			products.GET("", pubHandler.ListProducts)
 			products.GET("/:slug", pubHandler.GetProductDetail)
+			products.GET("/:slug/reviews", pubHandler.GetProductReviews)
+			products.GET("/:slug/review-eligibility", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.CheckReviewEligibility)
+		}
+
+		// Social Proof & Verified Buyer Reviews
+		reviews := api.Group("/reviews")
+		{
+			reviews.POST("", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.SubmitReview)
+			reviews.POST("/:id/helpful", pubHandler.VoteReviewHelpful)
 		}
 
 		orders := api.Group("/orders")
@@ -91,6 +101,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			{
 				// Products & Inventory
 				protected.GET("/products", admHandler.ListProducts)
+				protected.GET("/products/:id", admHandler.GetProduct)
 				protected.POST("/products", admHandler.CreateProduct)
 				protected.PUT("/products/:id", admHandler.UpdateProduct)
 				protected.DELETE("/products/:id", admHandler.DeleteProduct)
@@ -103,6 +114,13 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				// Coupons Management
 				protected.GET("/coupons", admHandler.ListCoupons)
 				protected.POST("/coupons", admHandler.CreateCoupon)
+
+				// Buyer Reviews & Social Proof Moderation
+				protected.GET("/reviews", admHandler.ListReviews)
+				protected.PUT("/reviews/:id/status", admHandler.UpdateReviewStatus)
+				protected.POST("/reviews/:id/reply", admHandler.ReplyReview)
+				protected.PUT("/reviews/:id/feature", admHandler.FeatureReview)
+				protected.DELETE("/reviews/:id", admHandler.DeleteReview)
 
 				// Operator Order Queue Workbench
 				protected.GET("/orders", admHandler.ListQueueOrders)

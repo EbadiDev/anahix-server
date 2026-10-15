@@ -9,28 +9,101 @@ import (
 // Public Storefront DTOs
 
 type ProductListItem struct {
-	ID             string  `json:"id"`
-	Title          string  `json:"title"`
-	TitleFA        string  `json:"title_fa"`
-	Slug           string  `json:"slug"`
-	Category       string  `json:"category"`
-	DeliveryType   string  `json:"delivery_type"`
-	PriceToman     int64   `json:"price_toman"`
-	BaseCostUSD    float64 `json:"base_cost_usd,omitempty"`
-	SLAMinMinutes  int     `json:"sla_min_minutes"`
-	SLAMaxMinutes  int     `json:"sla_max_minutes"`
-	SLADisplayText string  `json:"sla_display_text"`
-	OperatingHours string  `json:"operating_hours"`
-	IconURL        string  `json:"icon_url"`
-	BannerURL      string  `json:"banner_url"`
-	AvailableStock int64   `json:"available_stock"`
-	IsActive       bool    `json:"is_active"`
+	ID             string   `json:"id"`
+	Title          string   `json:"title"`
+	TitleFA        string   `json:"title_fa"`
+	Slug           string   `json:"slug"`
+	Category       string   `json:"category"`
+	DeliveryType   string   `json:"delivery_type"`
+	PriceToman     int64    `json:"price_toman"`
+	BaseCostUSD    float64  `json:"base_cost_usd,omitempty"`
+	SLAMinMinutes  int      `json:"sla_min_minutes"`
+	SLAMaxMinutes  int      `json:"sla_max_minutes"`
+	SLADisplayText string   `json:"sla_display_text"`
+	OperatingHours string   `json:"operating_hours"`
+	IconURL        string   `json:"icon_url"`
+	BannerURL      string   `json:"banner_url"`
+	AvailableStock int64    `json:"available_stock"`
+	IsActive       bool     `json:"is_active"`
+	GroupTag       string   `json:"group_tag,omitempty"`
+	GroupTitleFA   string   `json:"group_title_fa,omitempty"`
+	Features       []string `json:"features,omitempty"`
+}
+
+type ProductPlan struct {
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	DurationDays       int      `json:"duration_days"`
+	DurationText       string   `json:"duration_text"`
+	PriceToman         int64    `json:"price_toman"`
+	OriginalPriceToman int64    `json:"original_price_toman,omitempty"`
+	BaseCostUSD        float64  `json:"base_cost_usd,omitempty"`
+	Badge              string   `json:"badge,omitempty"`
+	IsDefault          bool     `json:"is_default"`
+	DeliveryType       string   `json:"delivery_type,omitempty"`
+	Features           []string `json:"features,omitempty"`
+}
+
+type ComparisonColumn struct {
+	Key       string `json:"key"`
+	Title     string `json:"title"`
+	Subtitle  string `json:"subtitle,omitempty"`
+	Badge     string `json:"badge,omitempty"`
+	Highlight bool   `json:"highlight"`
+}
+
+type ComparisonFeature struct {
+	Name     string            `json:"name"`
+	Category string            `json:"category,omitempty"`
+	Values   map[string]string `json:"values"`
+}
+
+type ProductComparison struct {
+	Columns  []ComparisonColumn  `json:"columns"`
+	Features []ComparisonFeature `json:"features"`
+}
+
+type ActivationStep struct {
+	StepNumber  int    `json:"step_number"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Icon        string `json:"icon,omitempty"`
+	Tip         string `json:"tip,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+}
+
+type ProductFAQ struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+type ProductSEO struct {
+	MetaTitle       string `json:"meta_title"`
+	MetaDescription string `json:"meta_description"`
+	OgImageURL      string `json:"og_image_url,omitempty"`
 }
 
 type ProductDetail struct {
 	ProductListItem
-	Description  string `json:"description"`
-	Instructions string `json:"instructions"`
+	Description      string             `json:"description"`
+	Instructions     string             `json:"instructions"`
+	DeliveryStrategy string             `json:"delivery_strategy,omitempty"`
+	SEO              ProductSEO         `json:"seo"`
+	Plans            []ProductPlan      `json:"plans"`
+	ComparisonTable  *ProductComparison `json:"comparison_table,omitempty"`
+	ActivationGuide  []ActivationStep   `json:"activation_guide"`
+	Faqs             []ProductFAQ       `json:"faqs"`
+	Features         []string           `json:"features"`
+
+	// Raw JSON strings for Admin editing
+	MetaTitle       string `json:"meta_title,omitempty"`
+	MetaDescription string `json:"meta_description,omitempty"`
+	OgImageURL      string `json:"og_image_url,omitempty"`
+	PlansJSON       string `json:"plans_json,omitempty"`
+	ComparisonJSON  string `json:"comparison_json,omitempty"`
+	GuideJSON       string `json:"guide_json,omitempty"`
+	FaqJSON         string `json:"faq_json,omitempty"`
+	FeaturesJSON    string `json:"features_json,omitempty"`
 }
 
 type PaymentMethodItem struct {
@@ -44,11 +117,13 @@ type PaymentMethodItem struct {
 
 type CartItemInput struct {
 	ProductID string `json:"product_id"`
+	PlanID    string `json:"plan_id,omitempty"`
 	Quantity  int    `json:"quantity"`
 }
 
 type CreateOrderRequest struct {
 	ProductID     string          `json:"product_id"`
+	PlanID        string          `json:"plan_id,omitempty"`
 	Items         []CartItemInput `json:"items"`
 	CustomerPhone string          `json:"customer_phone" binding:"required"`
 	CustomerEmail string          `json:"customer_email"`
@@ -541,5 +616,130 @@ type WalletLedgerItemDTO struct {
 	PaymentRefID      string    `json:"payment_ref_id,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 }
+
+// Review and Social Proof DTOs
+
+type ReviewItemDTO struct {
+	ID               string     `json:"id"`
+	ProductID        string     `json:"product_id"`
+	ProductSlug      string     `json:"product_slug"`
+	ProductTitle     string     `json:"product_title"`
+	OrderID          string     `json:"order_id,omitempty"`
+	OrderNumber      string     `json:"order_number,omitempty"`
+	CustomerName     string     `json:"customer_name"`
+	CustomerPhone    string     `json:"customer_phone,omitempty"` // Masked for public
+	Rating           int        `json:"rating"`
+	Comment          string     `json:"comment"`
+	ExperienceTags   []string   `json:"experience_tags"`
+	Status           string     `json:"status"` // pending, approved, rejected
+	IsVerifiedBuyer  bool       `json:"is_verified_buyer"`
+	IsFeatured       bool       `json:"is_featured"`
+	HelpfulCount     int        `json:"helpful_count"`
+	AdminReply       string     `json:"admin_reply,omitempty"`
+	AdminReplyAuthor string     `json:"admin_reply_author,omitempty"`
+	AdminRepliedAt   *time.Time `json:"admin_replied_at,omitempty"`
+	RejectionReason  string     `json:"rejection_reason,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+}
+
+type RatingBreakdown struct {
+	Star5        int64 `json:"star_5"`
+	Star4        int64 `json:"star_4"`
+	Star3        int64 `json:"star_3"`
+	Star2        int64 `json:"star_2"`
+	Star1        int64 `json:"star_1"`
+	Star5Percent int   `json:"star_5_percent"`
+	Star4Percent int   `json:"star_4_percent"`
+	Star3Percent int   `json:"star_3_percent"`
+	Star2Percent int   `json:"star_2_percent"`
+	Star1Percent int   `json:"star_1_percent"`
+}
+
+type ExperienceTagSummary struct {
+	Tag     string `json:"tag"`
+	Count   int64  `json:"count"`
+	Percent int    `json:"percent"`
+}
+
+type ProductReviewsSummary struct {
+	AverageRating       float64                `json:"average_rating"`
+	TotalReviews        int64                  `json:"total_reviews"`
+	RatingBreakdown     RatingBreakdown        `json:"rating_breakdown"`
+	TopTags             []ExperienceTagSummary `json:"top_tags"`
+	VerifiedBuyersCount int64                  `json:"verified_buyers_count"`
+	SatisfactionRate    int                    `json:"satisfaction_rate"` // e.g. 98%
+}
+
+type ProductReviewsResponse struct {
+	Summary ProductReviewsSummary `json:"summary"`
+	Reviews []ReviewItemDTO       `json:"reviews"`
+	Total   int64                 `json:"total"`
+}
+
+type SubmitReviewRequest struct {
+	ProductID        string   `json:"product_id"`
+	ProductSlug      string   `json:"product_slug"`
+	OrderID          string   `json:"order_id"`
+	OrderNumber      string   `json:"order_number"`
+	OrderAccessToken string   `json:"order_access_token"`
+	CustomerPhone    string   `json:"customer_phone"`
+	CustomerName     string   `json:"customer_name"`
+	Rating           int      `json:"rating" binding:"required,min=1,max=5"`
+	Comment          string   `json:"comment"`
+	ExperienceTags   []string `json:"experience_tags"`
+}
+
+type SubmitReviewResponse struct {
+	ReviewID         string `json:"review_id"`
+	Status           string `json:"status"`
+	Message          string `json:"message"`
+	RequiresApproval bool   `json:"requires_approval"`
+}
+
+type ReviewEligibilityResponse struct {
+	Eligible       bool           `json:"eligible"`
+	Reason         string         `json:"reason,omitempty"`
+	OrderID        string         `json:"order_id,omitempty"`
+	OrderNumber    string         `json:"order_number,omitempty"`
+	ProductTitle   string         `json:"product_title,omitempty"`
+	ExistingReview *ReviewItemDTO `json:"existing_review,omitempty"`
+}
+
+type AdminReviewListRequest struct {
+	Status    string `form:"status"` // all, pending, approved, rejected
+	ProductID string `form:"product_id"`
+	Search    string `form:"search"`
+	Page      int    `form:"page,default=1"`
+	PageSize  int    `form:"page_size,default=20"`
+}
+
+type AdminReviewStats struct {
+	TotalReviews    int64   `json:"total_reviews"`
+	PendingReviews  int64   `json:"pending_reviews"`
+	ApprovedReviews int64   `json:"approved_reviews"`
+	RejectedReviews int64   `json:"rejected_reviews"`
+	AverageRating   float64 `json:"average_rating"`
+}
+
+type AdminReviewListResponse struct {
+	Items []ReviewItemDTO  `json:"items"`
+	Total int64            `json:"total"`
+	Stats AdminReviewStats `json:"stats"`
+}
+
+type AdminUpdateReviewStatusRequest struct {
+	Status          string `json:"status" binding:"required"` // approved, rejected
+	RejectionReason string `json:"rejection_reason"`
+}
+
+type AdminReplyReviewRequest struct {
+	Reply  string `json:"reply" binding:"required"`
+	Author string `json:"author"`
+}
+
+type AdminFeatureReviewRequest struct {
+	IsFeatured bool `json:"is_featured"`
+}
+
 
 

@@ -402,5 +402,11 @@ func seedInitialData(db *gorm.DB) {
 		}
 		log.Println("🌱 Seeded default promotional coupons ('WELCOME10', 'ANAHIX50', 'TELEGRAM20')")
 	}
+
+	// Seed PDP rich configurations (SEO, Plans, Comparison Matrix, Guides, FAQs)
+	seedPDPData(db)
+
+	// Seed Verified Buyer Reviews & Social Proof
+	seedReviewsData(db)
 }
 

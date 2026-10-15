@@ -1,6 +1,8 @@
 package public
 
 import (
+	"strconv"
+
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -148,4 +150,100 @@ func (h *PublicHandler) GetWalletLedger(c *gin.Context) {
 	resp, err := l.GetCustomerLedger(phone)
 	result.HttpResult(c, resp, err)
 }
+
+// Review Endpoints
+
+func (h *PublicHandler) GetProductReviews(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	ratingFilter := 0
+	if rStr := c.Query("rating"); rStr != "" {
+		if r, err := strconv.Atoi(rStr); err == nil {
+			ratingFilter = r
+		}
+	}
+
+	sortOrder := c.DefaultQuery("sort", "newest")
+	onlyWithComments := c.Query("has_comment") == "true"
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetProductReviews(slug, ratingFilter, sortOrder, onlyWithComments, page, pageSize)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) SubmitReview(c *gin.Context) {
+	var req types.SubmitReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	customerID := c.GetString("customer_id")
+	customerMobile := c.GetString("mobile")
+	if customerMobile == "" {
+		customerMobile = c.GetString("phone")
+	}
+	clientIP := c.ClientIP()
+
+	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.SubmitReview(&req, customerID, customerMobile, clientIP)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) VoteReviewHelpful(c *gin.Context) {
+	reviewID := c.Param("id")
+	if reviewID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	voterKey := c.GetString("customer_id")
+	if voterKey == "" {
+		voterKey = c.GetString("mobile")
+	}
+	if voterKey == "" {
+		voterKey = c.ClientIP()
+	}
+
+	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
+	newCount, err := l.VoteHelpful(reviewID, voterKey)
+	result.HttpResult(c, gin.H{"helpful_count": newCount}, err)
+}
+
+func (h *PublicHandler) CheckReviewEligibility(c *gin.Context) {
+	slug := c.Param("slug")
+	if slug == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	customerID := c.GetString("customer_id")
+	customerMobile := c.GetString("mobile")
+	if customerMobile == "" {
+		customerMobile = c.GetString("phone")
+	}
+
+	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.CheckEligibility(slug, customerID, customerMobile)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) GetMyReviews(c *gin.Context) {
+	customerID := c.GetString("customer_id")
+	customerMobile := c.GetString("mobile")
+	if customerMobile == "" {
+		customerMobile = c.GetString("phone")
+	}
+
+	l := public.NewReviewLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetCustomerReviews(customerID, customerMobile)
+	result.HttpResult(c, resp, err)
+}
+
 

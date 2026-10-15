@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -48,10 +49,25 @@ func generateOrderNumber() string {
 func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOrderResponse, error) {
 	// 1. Resolve requested items
 	type itemEntry struct {
-		Product  model.Product
-		Quantity int
+		Product    model.Product
+		Quantity   int
+		PriceToman int64
 	}
 	var entries []itemEntry
+
+	resolvePlanPrice := func(prod *model.Product, planID string) int64 {
+		if planID != "" && prod.PlansJSON != "" {
+			var plans []types.ProductPlan
+			if err := json.Unmarshal([]byte(prod.PlansJSON), &plans); err == nil {
+				for _, pl := range plans {
+					if pl.ID == planID && pl.PriceToman > 0 {
+						return pl.PriceToman
+					}
+				}
+			}
+		}
+		return prod.PriceToman
+	}
 
 	if len(req.Items) > 0 {
 		for _, it := range req.Items {
@@ -65,7 +81,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			}
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				entries = append(entries, itemEntry{Product: prod, Quantity: qty})
+				planPrice := resolvePlanPrice(&prod, it.PlanID)
+				entries = append(entries, itemEntry{Product: prod, Quantity: qty, PriceToman: planPrice})
 			}
 		}
 	} else if req.ProductID != "" {
@@ -73,7 +90,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		if err == nil {
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				entries = append(entries, itemEntry{Product: prod, Quantity: 1})
+				planPrice := resolvePlanPrice(&prod, req.PlanID)
+				entries = append(entries, itemEntry{Product: prod, Quantity: 1, PriceToman: planPrice})
 			}
 		}
 	}
@@ -85,7 +103,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	// 2. Compute Subtotal
 	var subtotalToman int64
 	for _, entry := range entries {
-		subtotalToman += entry.Product.PriceToman * int64(entry.Quantity)
+		subtotalToman += entry.PriceToman * int64(entry.Quantity)
 	}
 
 	// 3. Process Coupon if provided

@@ -72,6 +72,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.CouponUsage{},
 		&model.Referral{},
 		&model.ReferralCommission{},
+		&model.Review{},
+		&model.ReviewHelpfulVote{},
 	)
 }
 

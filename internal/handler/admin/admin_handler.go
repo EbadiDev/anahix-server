@@ -199,31 +199,113 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	var req model.Product
+	var req struct {
+		Title            *string                `json:"title"`
+		TitleFA          *string                `json:"title_fa"`
+		Slug             *string                `json:"slug"`
+		Description      *string                `json:"description"`
+		Category         *model.ProductCategory `json:"category"`
+		DeliveryType     *model.DeliveryType    `json:"delivery_type"`
+		SLAMinMinutes    *int                   `json:"sla_min_minutes"`
+		SLAMaxMinutes    *int                   `json:"sla_max_minutes"`
+		SLADisplayText   *string                `json:"sla_display_text"`
+		OperatingHours   *string                `json:"operating_hours"`
+		BaseCostUSD      *float64               `json:"base_cost_usd"`
+		PriceToman       *int64                 `json:"price_toman"`
+		IsActive         *bool                  `json:"is_active"`
+		Instructions     *string                `json:"instructions"`
+		GroupTag         *string                `json:"group_tag"`
+		GroupTitleFA     *string                `json:"group_title_fa"`
+		DeliveryStrategy *string                `json:"delivery_strategy"`
+		MetaTitle        *string                `json:"meta_title"`
+		MetaDescription  *string                `json:"meta_description"`
+		OgImageURL       *string                `json:"og_image_url"`
+		PlansJSON        *string                `json:"plans_json"`
+		ComparisonJSON   *string                `json:"comparison_json"`
+		GuideJSON        *string                `json:"guide_json"`
+		FaqJSON          *string                `json:"faq_json"`
+		FeaturesJSON     *string                `json:"features_json"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		result.ParamErrorResult(c, err)
 		return
 	}
 
-	existing.Title = req.Title
-	existing.TitleFA = req.TitleFA
-	if req.Slug != "" {
-		existing.Slug = req.Slug
+	if req.Title != nil {
+		existing.Title = *req.Title
 	}
-	existing.Description = req.Description
-	existing.Category = req.Category
-	existing.DeliveryType = req.DeliveryType
-	existing.SLAMinMinutes = req.SLAMinMinutes
-	existing.SLAMaxMinutes = req.SLAMaxMinutes
-	existing.SLADisplayText = req.SLADisplayText
-	existing.OperatingHours = req.OperatingHours
-	existing.BaseCostUSD = req.BaseCostUSD
-	existing.PriceToman = req.PriceToman
-	existing.IsActive = req.IsActive
-	existing.Instructions = req.Instructions
-	existing.GroupTag = req.GroupTag
-	existing.GroupTitleFA = req.GroupTitleFA
-	existing.DeliveryStrategy = req.DeliveryStrategy
+	if req.TitleFA != nil {
+		existing.TitleFA = *req.TitleFA
+	}
+	if req.Slug != nil && *req.Slug != "" {
+		existing.Slug = *req.Slug
+	}
+	if req.Description != nil {
+		existing.Description = *req.Description
+	}
+	if req.Category != nil {
+		existing.Category = *req.Category
+	}
+	if req.DeliveryType != nil {
+		existing.DeliveryType = *req.DeliveryType
+	}
+	if req.SLAMinMinutes != nil {
+		existing.SLAMinMinutes = *req.SLAMinMinutes
+	}
+	if req.SLAMaxMinutes != nil {
+		existing.SLAMaxMinutes = *req.SLAMaxMinutes
+	}
+	if req.SLADisplayText != nil {
+		existing.SLADisplayText = *req.SLADisplayText
+	}
+	if req.OperatingHours != nil {
+		existing.OperatingHours = *req.OperatingHours
+	}
+	if req.BaseCostUSD != nil {
+		existing.BaseCostUSD = *req.BaseCostUSD
+	}
+	if req.PriceToman != nil {
+		existing.PriceToman = *req.PriceToman
+	}
+	if req.IsActive != nil {
+		existing.IsActive = *req.IsActive
+	}
+	if req.Instructions != nil {
+		existing.Instructions = *req.Instructions
+	}
+	if req.GroupTag != nil {
+		existing.GroupTag = *req.GroupTag
+	}
+	if req.GroupTitleFA != nil {
+		existing.GroupTitleFA = *req.GroupTitleFA
+	}
+	if req.DeliveryStrategy != nil {
+		existing.DeliveryStrategy = *req.DeliveryStrategy
+	}
+	if req.MetaTitle != nil {
+		existing.MetaTitle = *req.MetaTitle
+	}
+	if req.MetaDescription != nil {
+		existing.MetaDescription = *req.MetaDescription
+	}
+	if req.OgImageURL != nil {
+		existing.OgImageURL = *req.OgImageURL
+	}
+	if req.PlansJSON != nil {
+		existing.PlansJSON = *req.PlansJSON
+	}
+	if req.ComparisonJSON != nil {
+		existing.ComparisonJSON = *req.ComparisonJSON
+	}
+	if req.GuideJSON != nil {
+		existing.GuideJSON = *req.GuideJSON
+	}
+	if req.FaqJSON != nil {
+		existing.FaqJSON = *req.FaqJSON
+	}
+	if req.FeaturesJSON != nil {
+		existing.FeaturesJSON = *req.FeaturesJSON
+	}
 
 	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Save(&existing).Error; err != nil {
 		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
@@ -257,6 +339,32 @@ func (h *AdminHandler) DeleteProduct(c *gin.Context) {
 	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_PRODUCT", "product", prodID.String(), fmt.Sprintf("حذف محصول: %s (%s)", existing.TitleFA, existing.Slug), nil, c.ClientIP(), c.Request.UserAgent())
 
 	result.HttpResult(c, gin.H{"deleted": true, "id": prodID.String()}, nil)
+}
+
+func (h *AdminHandler) GetProduct(c *gin.Context) {
+	idStr := c.Param("id")
+	prodID, err := uuid.Parse(idStr)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("شناسه محصول نامعتبر است"))
+		return
+	}
+
+	var p model.Product
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&p, "id = ?", prodID).Error; err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
+		return
+	}
+
+	var stock int64
+	if p.DeliveryType == model.DeliveryInstant {
+		h.svcCtx.DB.WithContext(c.Request.Context()).
+			Model(&model.InventoryItem{}).
+			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
+			Count(&stock)
+	}
+	p.AvailableStock = stock
+
+	result.HttpResult(c, p, nil)
 }
 
 func (h *AdminHandler) GetVirtualNumberSettings(c *gin.Context) {
@@ -500,4 +608,96 @@ func (h *AdminHandler) CreateCoupon(c *gin.Context) {
 	}
 	result.HttpResult(c, resp, err)
 }
+
+// Review Management Handlers
+
+func (h *AdminHandler) ListReviews(c *gin.Context) {
+	var req types.AdminReviewListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewReviewAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListReviews(&req)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateReviewStatus(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminUpdateReviewStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	l := admin.NewReviewAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateReviewStatus(id, req.Status, req.RejectionReason, adminUsername)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), adminUsername, "UPDATE_REVIEW_STATUS", "review", id, fmt.Sprintf("تغییر وضعیت نظر به %s", req.Status), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": req.Status}, err)
+}
+
+func (h *AdminHandler) ReplyReview(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminReplyReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	adminUsername := c.GetString("username")
+	l := admin.NewReviewAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.ReplyReview(id, req.Reply, req.Author, adminUsername)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), adminUsername, "REPLY_REVIEW", "review", id, "ارسال پاسخ رسمی پشتیبانی به نظر خریدار", req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "replied"}, err)
+}
+
+func (h *AdminHandler) FeatureReview(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.AdminFeatureReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewReviewAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.FeatureReview(id, req.IsFeatured)
+	result.HttpResult(c, gin.H{"is_featured": req.IsFeatured}, err)
+}
+
+func (h *AdminHandler) DeleteReview(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	l := admin.NewReviewAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.DeleteReview(id)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_REVIEW", "review", id, "حذف نظر کاربر توسط ادمین", nil, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"deleted": true}, err)
+}
+
 

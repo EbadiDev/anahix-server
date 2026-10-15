@@ -54,6 +54,16 @@ type Product struct {
 	ExternalProductID   int64  `gorm:"default:0;index" json:"external_product_id"`
 	ExternalProductName string `gorm:"size:255" json:"external_product_name"`
 
+	// PDP & SEO Enhancements
+	MetaTitle       string `gorm:"size:255" json:"meta_title"`
+	MetaDescription string `gorm:"type:text" json:"meta_description"`
+	OgImageURL      string `gorm:"size:512" json:"og_image_url"`
+	PlansJSON       string `gorm:"type:text" json:"plans_json"`
+	ComparisonJSON  string `gorm:"type:text" json:"comparison_json"`
+	GuideJSON       string `gorm:"type:text" json:"guide_json"`
+	FaqJSON         string `gorm:"type:text" json:"faq_json"`
+	FeaturesJSON    string `gorm:"type:text" json:"features_json"`
+
 	// Computed stock count for instant delivery items
 	AvailableStock int64 `gorm:"-" json:"available_stock"`
 
