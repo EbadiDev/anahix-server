@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EbadiDev/anahix-server/internal/logic/loyalty"
 	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -35,6 +36,9 @@ type AdminQueueOrderItem struct {
 	Status               model.OrderStatus     `json:"status"`
 	DeliveryType         model.DeliveryType    `json:"delivery_type"`
 	TotalAmountToman     int64                 `json:"total_amount_toman"`
+	LoyaltyDiscountToman int64                 `json:"loyalty_discount_toman"`
+	CustomerTier         string                `json:"customer_tier"`
+	PriorityScore        int                   `json:"priority_score"`
 	PaymentMethod        model.PaymentMethod   `json:"payment_method"`
 	ProductTitle         string                `json:"product_title"`
 	CustomerCredentials  string                `json:"customer_credentials,omitempty"`
@@ -54,7 +58,7 @@ type AdminOrderDetailResponse struct {
 }
 
 func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]AdminQueueOrderItem, error) {
-	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Order("created_at asc")
+	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items").Order("priority_score desc, created_at asc")
 
 	if status != "" {
 		query = query.Where("status = ?", status)
@@ -88,6 +92,9 @@ func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]
 			Status:               o.Status,
 			DeliveryType:         o.DeliveryType,
 			TotalAmountToman:     o.TotalAmountToman,
+			LoyaltyDiscountToman: o.LoyaltyDiscountToman,
+			CustomerTier:         o.CustomerTier,
+			PriorityScore:        o.PriorityScore,
 			PaymentMethod:        o.PaymentMethod,
 			TwoFactorPrompt:      o.TwoFactorPrompt,
 			TwoFactorCode:        o.TwoFactorCode,
@@ -212,6 +219,11 @@ func (l *OrderDeskLogic) CompleteOrder(orderIDStr string, req *types.CompleteOrd
 
 	// Dispatch Pattern SMS upon completion and license delivery
 	if order.CustomerPhone != "" {
+		// Recalculate customer tier and lifetime spend asynchronously
+		go func(phone string) {
+			_ = loyalty.RecalculateByPhone(context.Background(), l.svcCtx.DB, phone)
+		}(order.CustomerPhone)
+
 		var item model.OrderItem
 		_ = l.svcCtx.DB.WithContext(l.ctx).Where("order_id = ?", order.ID).First(&item).Error
 		payload := item.DeliveredPayload
@@ -285,6 +297,9 @@ func (l *OrderDeskLogic) ListAllOrders(status string, deliveryType string, payme
 			Status:               o.Status,
 			DeliveryType:         o.DeliveryType,
 			TotalAmountToman:     o.TotalAmountToman,
+			LoyaltyDiscountToman: o.LoyaltyDiscountToman,
+			CustomerTier:         o.CustomerTier,
+			PriorityScore:        o.PriorityScore,
 			PaymentMethod:        o.PaymentMethod,
 			TwoFactorPrompt:      o.TwoFactorPrompt,
 			TwoFactorCode:        o.TwoFactorCode,

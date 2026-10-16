@@ -570,5 +570,8 @@ func seedInitialData(db *gorm.DB) {
 
 	// Seed Blog Articles, Knowledge Base Guides, and Content Taxonomies
 	seedContentData(db)
+
+	// Seed Loyalty Tiers and VIP Club Configurations
+	seedLoyaltyData(db)
 }
 

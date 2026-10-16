@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
+	"github.com/EbadiDev/anahix-server/internal/logic/loyalty"
 	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -108,7 +109,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	}
 
 	// 3. Process Coupon if provided
-	var discountToman int64
+	var couponDiscountToman int64
 	var appliedCoupon *model.Coupon
 	if req.CouponCode != "" {
 		code := strings.ToUpper(strings.TrimSpace(req.CouponCode))
@@ -127,22 +128,50 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			}
 			if valid {
 				if c.DiscountType == model.DiscountTypePercentage {
-					discountToman = (subtotalToman * c.DiscountValue) / 100
-					if c.MaxDiscountToman > 0 && discountToman > c.MaxDiscountToman {
-						discountToman = c.MaxDiscountToman
+					couponDiscountToman = (subtotalToman * c.DiscountValue) / 100
+					if c.MaxDiscountToman > 0 && couponDiscountToman > c.MaxDiscountToman {
+						couponDiscountToman = c.MaxDiscountToman
 					}
 				} else {
-					discountToman = c.DiscountValue
+					couponDiscountToman = c.DiscountValue
 				}
-				if discountToman > subtotalToman {
-					discountToman = subtotalToman
+				if couponDiscountToman > subtotalToman {
+					couponDiscountToman = subtotalToman
 				}
 				appliedCoupon = &c
 			}
 		}
 	}
 
-	totalAmountToman := subtotalToman - discountToman
+	// 4. Resolve Dynamic Customer Loyalty Tier & VIP Automatic Discount
+	customerTierCode := "bronze"
+	priorityScore := 0
+	var loyaltyDiscountToman int64 = 0
+
+	if req.CustomerPhone != "" {
+		var customer model.Customer
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", req.CustomerPhone).First(&customer).Error; err == nil {
+			if customer.Tier != "" {
+				customerTierCode = strings.ToLower(customer.Tier)
+			}
+		}
+	}
+
+	// Fetch dynamic tier configuration from database (zero hardcoding)
+	var activeTier model.LoyaltyTier
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("code = ? AND is_active = ?", customerTierCode, true).First(&activeTier).Error; err == nil {
+		priorityScore = activeTier.QueuePriority
+		if activeTier.DiscountPercent > 0 {
+			loyaltyDiscountToman = int64(float64(subtotalToman) * (activeTier.DiscountPercent / 100.0))
+		}
+	}
+
+	totalDiscountToman := couponDiscountToman + loyaltyDiscountToman
+	if totalDiscountToman > subtotalToman {
+		totalDiscountToman = subtotalToman
+	}
+
+	totalAmountToman := subtotalToman - totalDiscountToman
 	if totalAmountToman < 0 {
 		totalAmountToman = 0
 	}
@@ -240,6 +269,10 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 					}
 				}
 
+				// Calculate unit Cost in USD and Toman
+				costUSD := prod.BaseCostUSD
+				costToman := int64(costUSD * 95000) // Default fallback if needed
+
 				orderItems = append(orderItems, model.OrderItem{
 					ID:               uuid.New(),
 					OrderID:          orderID,
@@ -251,6 +284,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 					UnitPriceToman:   prod.PriceToman,
 					Quantity:         1,
 					SubtotalToman:    prod.PriceToman,
+					CostUSD:          costUSD,
+					CostToman:        costToman,
 					DeliveredPayload: deliveredPayload,
 					Instructions:     instructions,
 				})
@@ -338,7 +373,10 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			Status:                       initialStatus,
 			DeliveryType:                 primaryDeliveryType,
 			SubtotalAmountToman:          subtotalToman,
-			DiscountAmountToman:          discountToman,
+			DiscountAmountToman:          totalDiscountToman,
+			LoyaltyDiscountToman:         loyaltyDiscountToman,
+			CustomerTier:                 customerTierCode,
+			PriorityScore:                priorityScore,
 			CouponCode:                   req.CouponCode,
 			ReferralCode:                 req.ReferralCode,
 			TotalAmountToman:             totalAmountToman,
@@ -371,7 +409,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 				CouponID:      appliedCoupon.ID,
 				CustomerPhone: req.CustomerPhone,
 				OrderID:       orderID,
-				DiscountToman: discountToman,
+				DiscountToman: couponDiscountToman,
 				CreatedAt:     now,
 			})
 		}
@@ -446,6 +484,13 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 
 	if txErr != nil {
 		return nil, txErr
+	}
+
+	// Recalculate customer loyalty tier if paid
+	if (createdOrder.Status == model.OrderPaid || createdOrder.Status == model.OrderCompleted) && createdOrder.CustomerPhone != "" {
+		go func(phone string) {
+			_ = loyalty.RecalculateByPhone(context.Background(), l.svcCtx.DB, phone)
+		}(createdOrder.CustomerPhone)
 	}
 
 	// Dispatch Pattern SMS upon instant delivery & completion

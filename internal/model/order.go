@@ -55,6 +55,9 @@ type Order struct {
 	TotalAmountToman    int64         `gorm:"not null" json:"total_amount_toman"`
 	SubtotalAmountToman int64         `gorm:"not null;default:0" json:"subtotal_amount_toman"`
 	DiscountAmountToman int64         `gorm:"not null;default:0" json:"discount_amount_toman"`
+	LoyaltyDiscountToman int64        `gorm:"not null;default:0" json:"loyalty_discount_toman"`
+	CustomerTier        string        `gorm:"size:40;default:'bronze';index" json:"customer_tier"`
+	PriorityScore       int           `gorm:"default:0;index" json:"priority_score"`
 	CouponCode          string        `gorm:"size:64" json:"coupon_code,omitempty"`
 	ReferralCode        string        `gorm:"size:32;index" json:"referral_code,omitempty"`
 	PaymentMethod       PaymentMethod `gorm:"size:30;not null" json:"payment_method"`
@@ -117,6 +120,8 @@ type OrderItem struct {
 	UnitPriceToman  int64        `gorm:"not null" json:"unit_price_toman"`
 	Quantity        int          `gorm:"default:1;not null" json:"quantity"`
 	SubtotalToman   int64        `gorm:"default:0" json:"subtotal_toman"`
+	CostUSD         float64      `gorm:"type:decimal(10,2);default:0" json:"cost_usd"`
+	CostToman       int64        `gorm:"default:0" json:"cost_toman"`
 	
 	// Delivered payload (stored on instant external fulfillment, or decrypted dynamically for local inventory)
 	DeliveredPayload string    `gorm:"type:text" json:"delivered_payload,omitempty"`

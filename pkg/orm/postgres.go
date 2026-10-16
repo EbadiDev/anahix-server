@@ -83,6 +83,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.GuideFeedback{},
 		&model.ContentTemplate{},
 		&model.ServiceTarget{},
+		&model.LoyaltyTier{},
 	)
 }
 

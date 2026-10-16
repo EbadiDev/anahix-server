@@ -20,6 +20,9 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 	pubContentHandler := public.NewContentHandler(svcCtx)
 	admHandler := admin.NewAdminHandler(svcCtx)
 	admContentHandler := admin.NewContentAdminHandler(svcCtx)
+	admBIHandler := admin.NewBIAnalyticsHandler(svcCtx)
+	admLoyaltyHandler := admin.NewLoyaltyAdminHandler(svcCtx)
+	pubLoyaltyHandler := public.NewLoyaltyHandler(svcCtx)
 
 	// Static assets serving (Uploaded ticket screenshots and attachments)
 	r.Static("/uploads", "./uploads")
@@ -70,6 +73,13 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		coupons := api.Group("/coupons")
 		{
 			coupons.POST("/validate", pubHandler.ValidateCoupon)
+		}
+
+		// VIP Club & Loyalty Tiers
+		loyalty := api.Group("/loyalty")
+		{
+			loyalty.GET("/profile", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubLoyaltyHandler.GetMyLoyaltyProfile)
+			loyalty.GET("/tiers", pubLoyaltyHandler.ListTiersPublic)
 		}
 
 		// Referrals & Affiliate
@@ -249,6 +259,17 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.POST("/content/services", admContentHandler.CreateServiceTarget)
 				protected.PUT("/content/services/:id", admContentHandler.UpdateServiceTarget)
 				protected.DELETE("/content/services/:id", admContentHandler.DeleteServiceTarget)
+
+				// Business Intelligence & Commercial Analytics
+				protected.GET("/bi/overview", admBIHandler.GetOverview)
+
+				// VIP Club & Loyalty Tiers Management
+				protected.GET("/loyalty/tiers", admLoyaltyHandler.ListTiers)
+				protected.POST("/loyalty/tiers", admLoyaltyHandler.CreateTier)
+				protected.PUT("/loyalty/tiers/:id", admLoyaltyHandler.UpdateTier)
+				protected.DELETE("/loyalty/tiers/:id", admLoyaltyHandler.DeleteTier)
+				protected.GET("/loyalty/settings", admLoyaltyHandler.GetSettings)
+				protected.POST("/loyalty/settings", admLoyaltyHandler.UpdateSettings)
 
 				// Backward-compatibility aliases
 				protected.GET("/settings/5sim", admHandler.GetVirtualNumberSettings)
