@@ -222,6 +222,12 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		MetaTitle        *string                `json:"meta_title"`
 		MetaDescription  *string                `json:"meta_description"`
 		OgImageURL       *string                `json:"og_image_url"`
+		ImageURL         *string                `json:"image_url"`
+		IsFlashSale      *bool                  `json:"is_flash_sale"`
+		FlashSalePriceToman *int64              `json:"flash_sale_price_toman"`
+		FlashSaleStock   *int                   `json:"flash_sale_stock"`
+		IsBestSeller     *bool                  `json:"is_best_seller"`
+		IsFeatured       *bool                  `json:"is_featured"`
 		PlansJSON        *string                `json:"plans_json"`
 		ComparisonJSON   *string                `json:"comparison_json"`
 		GuideJSON        *string                `json:"guide_json"`
@@ -292,6 +298,24 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 	}
 	if req.OgImageURL != nil {
 		existing.OgImageURL = *req.OgImageURL
+	}
+	if req.ImageURL != nil {
+		existing.ImageURL = *req.ImageURL
+	}
+	if req.IsFlashSale != nil {
+		existing.IsFlashSale = *req.IsFlashSale
+	}
+	if req.FlashSalePriceToman != nil {
+		existing.FlashSalePriceToman = *req.FlashSalePriceToman
+	}
+	if req.FlashSaleStock != nil {
+		existing.FlashSaleStock = *req.FlashSaleStock
+	}
+	if req.IsBestSeller != nil {
+		existing.IsBestSeller = *req.IsBestSeller
+	}
+	if req.IsFeatured != nil {
+		existing.IsFeatured = *req.IsFeatured
 	}
 	if req.PlansJSON != nil {
 		existing.PlansJSON = *req.PlansJSON

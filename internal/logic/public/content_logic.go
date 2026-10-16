@@ -606,3 +606,21 @@ func (l *ContentLogic) ListServiceTargets() ([]types.ServiceTargetDTO, error) {
 	}
 	return res, nil
 }
+
+// LikeArticle increments like_count for an article and persists in DB
+func (l *ContentLogic) LikeArticle(slug string) (int64, error) {
+	var article model.Article
+	err := l.svcCtx.DB.WithContext(l.ctx).
+		Where("slug = ? AND is_published = ?", slug, true).
+		First(&article).Error
+	if err != nil {
+		return 0, xerr.NewErrMsg("مقاله مورد نظر یافت نشد")
+	}
+
+	article.LikeCount++
+	if err := l.svcCtx.DB.WithContext(l.ctx).Model(&article).Update("like_count", article.LikeCount).Error; err != nil {
+		return 0, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	return article.LikeCount, nil
+}

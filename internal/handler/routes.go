@@ -141,6 +141,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		{
 			articles.GET("", pubContentHandler.ListArticles)
 			articles.GET("/:slug", pubContentHandler.GetArticleDetail)
+			articles.POST("/:slug/like", pubContentHandler.LikeArticle)
 			articles.POST("/:slug/comments", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubContentHandler.SubmitComment)
 		}
 

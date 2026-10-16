@@ -69,6 +69,14 @@ func (h *ContentHandler) SubmitComment(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "ok"}, err)
 }
 
+// LikeArticle handles public like action for an article
+func (h *ContentHandler) LikeArticle(c *gin.Context) {
+	slug := c.Param("slug")
+	l := public.NewContentLogic(c.Request.Context(), h.svcCtx)
+	newLikeCount, err := l.LikeArticle(slug)
+	result.HttpResult(c, gin.H{"like_count": newLikeCount}, err)
+}
+
 // ListHelpGuides returns paginated knowledge base guides
 func (h *ContentHandler) ListHelpGuides(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
