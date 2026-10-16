@@ -12,18 +12,19 @@ import (
 
 // ContentCategory represents taxonomy for both Blog articles and Help guides
 type ContentCategory struct {
-	ID          uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
-	Name        string         `gorm:"size:120;not null" json:"name"`
-	Slug        string         `gorm:"size:120;uniqueIndex;not null" json:"slug"`
-	Type        string         `gorm:"size:30;not null;index" json:"type"` // "blog" | "help"
-	Icon        string         `gorm:"size:100;default:'BookOpen'" json:"icon"`
-	Description string         `gorm:"type:text" json:"description"`
-	SortOrder   int            `gorm:"default:0" json:"sort_order"`
-	IsActive    bool           `gorm:"default:true;index" json:"is_active"`
-	ArticleCount int64         `gorm:"-" json:"article_count,omitempty"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	ParentID     *uuid.UUID     `gorm:"type:uuid;index" json:"parent_id,omitempty"`
+	Name         string         `gorm:"size:120;not null" json:"name"`
+	Slug         string         `gorm:"size:120;uniqueIndex;not null" json:"slug"`
+	Type         string         `gorm:"size:30;not null;index" json:"type"` // "blog" | "help" | "product"
+	Icon         string         `gorm:"size:100;default:'BookOpen'" json:"icon"`
+	Description  string         `gorm:"type:text" json:"description"`
+	SortOrder    int            `gorm:"default:0" json:"sort_order"`
+	IsActive     bool           `gorm:"default:true;index" json:"is_active"`
+	ArticleCount int64          `gorm:"-" json:"article_count,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
 func (c *ContentCategory) BeforeCreate(tx *gorm.DB) error {

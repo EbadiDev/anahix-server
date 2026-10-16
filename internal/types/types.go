@@ -304,6 +304,8 @@ type VirtualNumberCountryItem struct {
 	Country            string                      `json:"country"`
 	CountryNameFA      string                      `json:"country_name_fa"`
 	CountryFlag        string                      `json:"country_flag"`
+	CountryCode        string                      `json:"country_code,omitempty"`
+	FlagURL            string                      `json:"flag_url,omitempty"`
 	TotalStock         int                         `json:"total_stock"`
 	BestRate           float64                     `json:"best_rate"`
 	CheapestPriceToman int64                       `json:"cheapest_price_toman"`

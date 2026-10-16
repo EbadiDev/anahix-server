@@ -223,6 +223,7 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		MetaDescription  *string                `json:"meta_description"`
 		OgImageURL       *string                `json:"og_image_url"`
 		ImageURL         *string                `json:"image_url"`
+		IconURL          *string                `json:"icon_url"`
 		IsFlashSale      *bool                  `json:"is_flash_sale"`
 		FlashSalePriceToman *int64              `json:"flash_sale_price_toman"`
 		FlashSaleStock   *int                   `json:"flash_sale_stock"`
@@ -301,6 +302,9 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 	}
 	if req.ImageURL != nil {
 		existing.ImageURL = *req.ImageURL
+	}
+	if req.IconURL != nil {
+		existing.IconURL = *req.IconURL
 	}
 	if req.IsFlashSale != nil {
 		existing.IsFlashSale = *req.IsFlashSale

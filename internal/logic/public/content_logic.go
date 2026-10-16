@@ -39,17 +39,28 @@ func (l *ContentLogic) ListCategories(catType string) ([]types.CategoryDTO, erro
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
-	res := make([]types.CategoryDTO, len(cats))
+	allDTOs := make([]types.CategoryDTO, len(cats))
+	dtoMap := make(map[string]*types.CategoryDTO)
+
 	for i, c := range cats {
 		var count int64 = 0
 		if c.Type == "blog" {
 			l.svcCtx.DB.WithContext(l.ctx).Model(&model.Article{}).Where("category_slug = ? AND is_published = ?", c.Slug, true).Count(&count)
+		} else if c.Type == "product" {
+			l.svcCtx.DB.WithContext(l.ctx).Model(&model.Product{}).Where("(category = ? OR group_tag = ?) AND is_active = ?", c.Slug, c.Slug, true).Count(&count)
 		} else {
 			l.svcCtx.DB.WithContext(l.ctx).Model(&model.HelpGuide{}).Where("category_slug = ? AND is_published = ?", c.Slug, true).Count(&count)
 		}
 
-		res[i] = types.CategoryDTO{
+		var pid *string
+		if c.ParentID != nil {
+			s := c.ParentID.String()
+			pid = &s
+		}
+
+		allDTOs[i] = types.CategoryDTO{
 			ID:           c.ID.String(),
+			ParentID:     pid,
 			Name:         c.Name,
 			Slug:         c.Slug,
 			Type:         c.Type,
@@ -58,9 +69,38 @@ func (l *ContentLogic) ListCategories(catType string) ([]types.CategoryDTO, erro
 			SortOrder:    c.SortOrder,
 			IsActive:     c.IsActive,
 			ArticleCount: count,
+			Children:     []types.CategoryDTO{},
 		}
+		dtoMap[allDTOs[i].ID] = &allDTOs[i]
 	}
-	return res, nil
+
+	// Build nested hierarchy
+	var rootCats []types.CategoryDTO
+	for _, dto := range allDTOs {
+		if dto.ParentID != nil && *dto.ParentID != "" {
+			if parent, exists := dtoMap[*dto.ParentID]; exists {
+				parent.Children = append(parent.Children, dto)
+				continue
+			}
+		}
+		rootCats = append(rootCats, dto)
+	}
+
+	// If hierarchy built top-level items, return rootCats with nested children; otherwise return all
+	if len(rootCats) > 0 {
+		// Reflect the mutated children
+		finalRes := make([]types.CategoryDTO, len(rootCats))
+		for i, r := range rootCats {
+			if ptr, ok := dtoMap[r.ID]; ok {
+				finalRes[i] = *ptr
+			} else {
+				finalRes[i] = r
+			}
+		}
+		return finalRes, nil
+	}
+
+	return allDTOs, nil
 }
 
 // ListArticles returns paginated published blog articles
@@ -146,11 +186,10 @@ func (l *ContentLogic) GetArticleBySlug(slug string) (*types.ArticleDetailDTO, e
 		return nil, xerr.NewErrMsg("مقاله مورد نظر یافت نشد")
 	}
 
-	// Increment view count asynchronously
-	go func(id uuid.UUID) {
-		l.svcCtx.DB.Model(&model.Article{}).Where("id = ?", id).
-			UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
-	}(a.ID)
+	// Atomically increment view count in database and sync to struct
+	_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.Article{}).Where("id = ?", a.ID).
+		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+	a.ViewCount += 1
 
 	// Parse Table of Contents
 	var toc []types.TOCItemDTO
@@ -288,7 +327,7 @@ func (l *ContentLogic) SubmitArticleComment(slug string, req *types.SubmitArticl
 		AuthorName: authorName,
 		Email:      strings.TrimSpace(req.Email),
 		Content:    content,
-		Status:     "approved", // Auto-approved or pending (let's set approved for immediate customer delight)
+		Status:     "pending", // Must be approved by admin before public display
 	}
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&comment).Error; err != nil {

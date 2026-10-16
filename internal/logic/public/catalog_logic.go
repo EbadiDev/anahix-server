@@ -48,9 +48,6 @@ func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
 		if p.FeaturesJSON != "" {
 			_ = json.Unmarshal([]byte(p.FeaturesJSON), &features)
 		}
-		if len(features) == 0 {
-			features = defaultFeaturesForProduct(&p)
-		}
 
 		result[i] = types.ProductListItem{
 			ID:                  p.ID.String(),
@@ -240,7 +237,7 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 func defaultFeaturesForProduct(p *model.Product) []string {
 	if p.DeliveryType == model.DeliveryInstant {
 		return []string{
-			"تحویل ۰ ثانیه‌ای بلافاصله پس از پرداخت",
+			"تحویل آنی بلافاصله پس از پرداخت",
 			"فعال‌سازی درجا و بدون نیاز به ارسال پسورد",
 			"تضمین ۱۰۰٪ اصالت لایسنس و عدم قطعی",
 			"پشتیبانی شبانه‌روزی آناهیکس",

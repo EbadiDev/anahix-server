@@ -4,35 +4,39 @@ import "time"
 
 // Content Categories DTOs
 type CategoryDTO struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Slug         string `json:"slug"`
-	Type         string `json:"type"` // "blog" | "help"
-	Icon         string `json:"icon"`
-	Description  string `json:"description"`
-	SortOrder    int    `json:"sort_order"`
-	IsActive     bool   `json:"is_active"`
-	ArticleCount int64  `json:"article_count"`
+	ID           string        `json:"id"`
+	ParentID     *string       `json:"parent_id,omitempty"`
+	Name         string        `json:"name"`
+	Slug         string        `json:"slug"`
+	Type         string        `json:"type"` // "blog" | "help" | "product"
+	Icon         string        `json:"icon"`
+	Description  string        `json:"description"`
+	SortOrder    int           `json:"sort_order"`
+	IsActive     bool          `json:"is_active"`
+	ArticleCount int64         `json:"article_count"`
+	Children     []CategoryDTO `json:"children,omitempty"`
 }
 
 type CreateCategoryRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Slug        string `json:"slug" binding:"required"`
-	Type        string `json:"type" binding:"required"` // "blog" | "help"
-	Icon        string `json:"icon"`
-	Description string `json:"description"`
-	SortOrder   int    `json:"sort_order"`
-	IsActive    *bool  `json:"is_active"`
+	ParentID    *string `json:"parent_id,omitempty"`
+	Name        string  `json:"name" binding:"required"`
+	Slug        string  `json:"slug" binding:"required"`
+	Type        string  `json:"type" binding:"required"` // "blog" | "help" | "product"
+	Icon        string  `json:"icon"`
+	Description string  `json:"description"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    *bool   `json:"is_active"`
 }
 
 type UpdateCategoryRequest struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Type        string `json:"type"`
-	Icon        string `json:"icon"`
-	Description string `json:"description"`
-	SortOrder   int    `json:"sort_order"`
-	IsActive    *bool  `json:"is_active"`
+	ParentID    *string `json:"parent_id,omitempty"`
+	Name        string  `json:"name"`
+	Slug        string  `json:"slug"`
+	Type        string  `json:"type"`
+	Icon        string  `json:"icon"`
+	Description string  `json:"description"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    *bool   `json:"is_active"`
 }
 
 // Blog Article DTOs

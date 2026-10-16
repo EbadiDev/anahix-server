@@ -57,7 +57,7 @@ func seedPDPData(db *gorm.DB) {
 			PriceToman:         1890000,
 			OriginalPriceToman: 2200000,
 			BaseCostUSD:        19.0,
-			Badge:              "تحویل ۰ ثانیه‌ای",
+			Badge:              "تحویل آنی",
 			IsDefault:          false,
 			DeliveryType:       "instant",
 			Features: []string{
@@ -167,7 +167,7 @@ func seedPDPData(db *gorm.DB) {
 			Features: []string{
 				"۲ ترابایت فضای ابری Google One (درایو، جیمیل، فوتوز)",
 				"دسترسی به Gemini 1.5 Pro با پنجره متنی ۲ میلیون توکن",
-				"تحویل ۰ ثانیه‌ای بلافاصله پس از پرداخت",
+				"تحویل آنی بلافاصله پس از پرداخت",
 				"فعال‌سازی با یک کلیک روی جیمیل شخصی بدون پسورد",
 			},
 		},
@@ -201,7 +201,7 @@ func seedPDPData(db *gorm.DB) {
 			{Name: "کانتکست ویندو (حافظه تحلیلی متن)", Category: "حافظه متنی", Values: map[string]string{"free": "۳۲ هزار توکن", "advanced": "۱ الی ۲ میلیون توکن (تحلیل کتاب‌های چندصد صفحه‌ای و ویدیو)"}},
 			{Name: "فضای ذخیره‌سازی ابری Google One", Category: "سرویس‌های ابری", Values: map[string]string{"free": "۱۵ گیگابایت اشتراکی", "advanced": "۲ ترابایت (۲,۰۰۰ گیگابایت) ابری گوگل درایو"}},
 			{Name: "یکپارچگی هوشمند با Google Docs و Gmail", Category: "بهره‌وری Workspace", Values: map[string]string{"free": "غیرفعال", "advanced": "دستیار نگارش و خلاصه‌سازی هوشمند در جیمیل و داکس"}},
-			{Name: "تحویل و شیوه فعال‌سازی", Category: "نحوه دریافت", Values: map[string]string{"free": "رایگان", "advanced": "تحویل ۰ ثانیه‌ای لینک بدون نیاز به ارائه پسورد"}},
+			{Name: "تحویل و شیوه فعال‌سازی", Category: "نحوه دریافت", Values: map[string]string{"free": "رایگان", "advanced": "تحویل آنی لینک بدون نیاز به ارائه پسورد"}},
 		},
 	}
 	geminiCompJSON, _ := json.Marshal(geminiComp)
@@ -241,7 +241,7 @@ func seedPDPData(db *gorm.DB) {
 	db.Model(&model.Product{}).Where("slug = ?", "gemini-advanced-18m").Updates(map[string]interface{}{
 		"is_active":        true,
 		"meta_title":       "خرید لینک فعال‌سازی ۱۸ ماهه گوگل جمینای ادونس و گوگل وان | آناهیکس",
-		"meta_description": "خرید اشتراک ۱۸ ماهه Google Gemini Advanced با ۲ ترابایت فضای ابری، تحویل ۰ ثانیه‌ای، فعال‌سازی با یک کلیک روی جیمیل شخصی بدون پسورد در آناهیکس.",
+		"meta_description": "خرید اشتراک ۱۸ ماهه Google Gemini Advanced با ۲ ترابایت فضای ابری، تحویل آنی، فعال‌سازی با یک کلیک روی جیمیل شخصی بدون پسورد در آناهیکس.",
 		"og_image_url":     "/assets/hero.png",
 		"plans_json":       string(geminiPlansJSON),
 		"comparison_json":  string(geminiCompJSON),

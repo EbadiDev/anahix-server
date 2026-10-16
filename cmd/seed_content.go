@@ -106,6 +106,202 @@ func seedContentData(db *gorm.DB) {
 		log.Println("🌱 Seeded content categories for Blog and Knowledge Base")
 	}
 
+	// Ensure Product Categories (Type: "product") are present in content_categories table
+	var prodCatCount int64
+	db.Model(&model.ContentCategory{}).Where("type = ?", "product").Count(&prodCatCount)
+	if prodCatCount == 0 {
+		productCategories := []model.ContentCategory{
+			{
+				ID:          uuid.New(),
+				Name:        "هوش مصنوعی و چت‌بات",
+				Slug:        "ai_chat",
+				Type:        "product",
+				Icon:        "Bot",
+				Description: "اشتراک قانونی ChatGPT Plus، Claude 3.7 Sonnet و Google Gemini Advanced",
+				SortOrder:   1,
+				IsActive:    true,
+			},
+			{
+				ID:          uuid.New(),
+				Name:        "دستیارهای کدنویسی",
+				Slug:        "coding_ai",
+				Type:        "product",
+				Icon:        "Code2",
+				Description: "اکانت‌های تخصصی برنامه‌نویسی Cursor AI Pro، GitHub Copilot و Replit",
+				SortOrder:   2,
+				IsActive:    true,
+			},
+			{
+				ID:          uuid.New(),
+				Name:        "ارتقای اکانت شخصی",
+				Slug:        "personal_upgrade",
+				Type:        "product",
+				Icon:        "Zap",
+				Description: "فعال‌سازی بدون پسورد و ۱۰۰٪ پایدار روی ایمیل و اکانت شخصی خریدار",
+				SortOrder:   3,
+				IsActive:    true,
+			},
+			{
+				ID:          uuid.New(),
+				Name:        "فضای ابری و گوگل وان",
+				Slug:        "cloud_storage",
+				Type:        "product",
+				Icon:        "HardDrive",
+				Description: "ارتقای حجم جیمیل و درایو اختصاصی ۲ ترابایت قانونی با هوش مصنوعی",
+				SortOrder:   4,
+				IsActive:    true,
+			},
+			{
+				ID:          uuid.New(),
+				Name:        "فیلم، سریال و استریم",
+				Slug:        "film_series",
+				Type:        "product",
+				Icon:        "Tv",
+				Description: "اشتراک‌های پریمیوم نتفلیکس، اسپاتیفای و یوتیوب پریمیوم بدون قطعی",
+				SortOrder:   5,
+				IsActive:    true,
+			},
+			{
+				ID:          uuid.New(),
+				Name:        "شماره‌های مجازی بین‌المللی",
+				Slug:        "virtual_numbers",
+				Type:        "product",
+				Icon:        "Radio",
+				Description: "دریافت آنی پیامک تایید تلگرام، گوگل، اوپن‌ای‌آی و پلتفرم‌های خارجی",
+				SortOrder:   6,
+				IsActive:    true,
+			},
+		}
+
+		for _, pc := range productCategories {
+			db.Create(&pc)
+		}
+		log.Println("🌱 Seeded dynamic product categories in content_categories table")
+	}
+
+	// Ensure Subcategories are seeded for rich nested navigation
+	var subCatCount int64
+	db.Model(&model.ContentCategory{}).Where("parent_id IS NOT NULL").Count(&subCatCount)
+	if subCatCount == 0 {
+		var aiChatCat, codingCat, filmCat model.ContentCategory
+		db.Where("slug = ? AND type = ?", "ai_chat", "product").First(&aiChatCat)
+		db.Where("slug = ? AND type = ?", "coding_ai", "product").First(&codingCat)
+		db.Where("slug = ? AND type = ?", "film_series", "product").First(&filmCat)
+
+		var subCategories []model.ContentCategory
+
+		if aiChatCat.ID != uuid.Nil {
+			pID := aiChatCat.ID
+			subCategories = append(subCategories,
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "چت‌جی‌پی‌تی پلاس (ChatGPT Plus & o3)",
+					Slug:        "chatgpt",
+					Type:        "product",
+					Icon:        "Bot",
+					Description: "اکانت قانونی چت‌جی‌پی‌تی با دسترسی نامحدود به مدل‌های GPT-4o و استدلالی o3",
+					SortOrder:   1,
+					IsActive:    true,
+				},
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "انتروپیک کلود پرو (Claude 3.7 Sonnet)",
+					Slug:        "claude",
+					Type:        "product",
+					Icon:        "Bot",
+					Description: "قدرتمندترین مدل استدلال و کدنویسی جهان با پنجره کانتکست ۲۰۰ هزار توکن",
+					SortOrder:   2,
+					IsActive:    true,
+				},
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "گوگل جمینای ادونس (Gemini Advanced)",
+					Slug:        "gemini",
+					Type:        "product",
+					Icon:        "Sparkles",
+					Description: "اشتراک ۱۸ ماهه جمینای با ۲ ترابایت حافظه ابری گوگل درایو و جیمیل",
+					SortOrder:   3,
+					IsActive:    true,
+				},
+			)
+		}
+
+		if codingCat.ID != uuid.Nil {
+			pID := codingCat.ID
+			subCategories = append(subCategories,
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "کرسر پرو هوش مصنوعی (Cursor Pro)",
+					Slug:        "cursor",
+					Type:        "product",
+					Icon:        "Code2",
+					Description: "ادیتور انقلابی هوش مصنوعی بر پایه VS Code با ۵۰۰ درخواست پرمیوم ماهانه",
+					SortOrder:   1,
+					IsActive:    true,
+				},
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "گیت‌هاب کوپایلوت (GitHub Copilot)",
+					Slug:        "github_copilot",
+					Type:        "product",
+					Icon:        "Code2",
+					Description: "دستیار رسمی برنامه‌نویسی مایکروسافت با تکمیل خودکار هوشمند چندخطی",
+					SortOrder:   2,
+					IsActive:    true,
+				},
+			)
+		}
+
+		if filmCat.ID != uuid.Nil {
+			pID := filmCat.ID
+			subCategories = append(subCategories,
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "نتفلیکس پریمیوم (Netflix 4K UHD)",
+					Slug:        "netflix",
+					Type:        "product",
+					Icon:        "Tv",
+					Description: "اکانت اختصاصی بدون قطعی با کیفیت اولترا اچ‌دی و پشتیبانی ۴ کاربر همزمان",
+					SortOrder:   1,
+					IsActive:    true,
+				},
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "اسپاتیفای پریمیوم (Spotify Premium)",
+					Slug:        "spotify",
+					Type:        "product",
+					Icon:        "Radio",
+					Description: "موسیقی بدون تبلیغات، دانلود آفلاین با بالاترین کیفیت صدای ۳۲۰kbps",
+					SortOrder:   2,
+					IsActive:    true,
+				},
+				model.ContentCategory{
+					ID:          uuid.New(),
+					ParentID:    &pID,
+					Name:        "یوتیوب پریمیوم (YouTube Premium)",
+					Slug:        "youtube",
+					Type:        "product",
+					Icon:        "Tv",
+					Description: "حذف کامل تبلیغات یوتیوب، پخش در پس‌زمینه و دسترسی رایگان به YouTube Music",
+					SortOrder:   3,
+					IsActive:    true,
+				},
+			)
+		}
+
+		for _, sub := range subCategories {
+			db.Create(&sub)
+		}
+		log.Println("🌱 Seeded rich nested subcategories in content_categories table")
+	}
+
 	// Find some product slugs to link
 	var geminiProduct model.Product
 	db.Where("slug LIKE ?", "%gemini%").First(&geminiProduct)

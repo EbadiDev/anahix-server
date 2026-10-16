@@ -9,6 +9,15 @@ bin/
 *.test
 *.out
 
+# Uploads & User Media (Ignored so dynamic uploaded files don't pollute git)
+uploads/
+uploads/**
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+
 # SQLite local fallback
 *.db
 *.db-journal
