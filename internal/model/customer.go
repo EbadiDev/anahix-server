@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -14,6 +15,10 @@ type Customer struct {
 	LastName     string         `gorm:"size:60" json:"last_name,omitempty"`
 	FullName     string         `gorm:"size:120" json:"full_name"`
 	Email        string         `gorm:"size:120" json:"email"`
+	AvatarURL    string         `gorm:"size:512" json:"avatar_url,omitempty"`
+	PasswordHash string         `gorm:"size:255" json:"-"`
+	GoogleID     string         `gorm:"size:120;index" json:"google_id,omitempty"`
+	GithubID     string         `gorm:"size:120;index" json:"github_id,omitempty"`
 	BalanceToman         int64          `gorm:"not null;default:0" json:"balance_toman"`
 	ReferralCode         string         `gorm:"size:32;uniqueIndex" json:"referral_code"`
 	ReferralBalanceToman int64          `gorm:"not null;default:0" json:"referral_balance_toman"`
@@ -40,6 +45,23 @@ type Customer struct {
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedAt            gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (c *Customer) SetPassword(password string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	c.PasswordHash = string(hash)
+	return nil
+}
+
+func (c *Customer) CheckPassword(password string) bool {
+	if c.PasswordHash == "" {
+		return false
+	}
+	err := bcrypt.CompareHashAndPassword([]byte(c.PasswordHash), []byte(password))
+	return err == nil
 }
 
 func (c *Customer) BeforeCreate(tx *gorm.DB) error {

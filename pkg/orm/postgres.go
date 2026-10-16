@@ -84,6 +84,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.ContentTemplate{},
 		&model.ServiceTarget{},
 		&model.LoyaltyTier{},
+		&model.Banner{},
 	)
 }
 

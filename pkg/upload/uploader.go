@@ -101,3 +101,56 @@ func SaveTicketAttachment(fileHeader *multipart.FileHeader) (*types.UploadAttach
 		IsImage:  imageExtensions[ext],
 	}, nil
 }
+
+const MediaUploadDirectory = "uploads/media"
+
+// SaveMediaImage validates and stores uploaded product or banner images
+func SaveMediaImage(fileHeader *multipart.FileHeader) (*types.UploadAttachmentResponse, error) {
+	if fileHeader == nil {
+		return nil, errors.New("فایلی ارسال نشده است")
+	}
+
+	if fileHeader.Size > MaxFileSize {
+		return nil, fmt.Errorf("حجم عکس نباید بیشتر از ۱۰ مگابایت باشد")
+	}
+
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if !imageExtensions[ext] {
+		return nil, errors.New("فرمت تصویر مجاز نیست (فرمت‌های مجاز: PNG, JPG, JPEG, WEBP, GIF)")
+	}
+
+	if err := os.MkdirAll(MediaUploadDirectory, 0755); err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد پوشه ذخیره‌سازی: %w", err)
+	}
+
+	randomBytes := make([]byte, 8)
+	_, _ = rand.Read(randomBytes)
+	uniqueFileName := fmt.Sprintf("media_%d_%s%s", time.Now().Unix(), hex.EncodeToString(randomBytes), ext)
+	dstPath := filepath.Join(MediaUploadDirectory, uniqueFileName)
+
+	src, err := fileHeader.Open()
+	if err != nil {
+		return nil, fmt.Errorf("خطا در باز کردن فایل ارسالی: %w", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد فایل: %w", err)
+	}
+	defer dst.Close()
+
+	written, err := io.Copy(dst, src)
+	if err != nil {
+		return nil, fmt.Errorf("خطا در ذخیره‌سازی: %w", err)
+	}
+
+	return &types.UploadAttachmentResponse{
+		ID:       uniqueFileName,
+		FileName: fileHeader.Filename,
+		FileURL:  "/uploads/media/" + uniqueFileName,
+		FileSize: written,
+		MimeType: "image/" + strings.TrimPrefix(ext, "."),
+		IsImage:  true,
+	}, nil
+}

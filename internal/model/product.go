@@ -45,6 +45,22 @@ type Product struct {
 	Instructions string `gorm:"type:text" json:"instructions"`
 	IconURL      string `gorm:"size:512" json:"icon_url"`
 	BannerURL    string `gorm:"size:512" json:"banner_url"`
+	ImageURL     string `gorm:"size:512" json:"image_url"`
+	GalleryJSON  string `gorm:"type:text" json:"gallery_json"`
+
+	// Flash Sale & Promotions
+	IsFlashSale         bool       `gorm:"default:false;index" json:"is_flash_sale"`
+	FlashSalePriceToman int64      `gorm:"default:0" json:"flash_sale_price_toman"`
+	FlashSaleEndAt      *time.Time `json:"flash_sale_end_at,omitempty"`
+	FlashSaleStock      int        `gorm:"default:0" json:"flash_sale_stock"`
+	FlashSaleSold       int        `gorm:"default:0" json:"flash_sale_sold"`
+
+	// Social proof & Merchandising
+	IsBestSeller  bool    `gorm:"default:false;index" json:"is_best_seller"`
+	IsFeatured    bool    `gorm:"default:false;index" json:"is_featured"`
+	RatingAverage float64 `gorm:"type:decimal(3,2);default:5.0" json:"rating_average"`
+	SalesCount    int     `gorm:"default:0" json:"sales_count"`
+	BadgesJSON    string  `gorm:"type:text" json:"badges_json"`
 
 	// Delivery Strategy & Group Routing Engine
 	GroupTag            string `gorm:"size:80;index;default:'general'" json:"group_tag"`

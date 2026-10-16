@@ -463,6 +463,7 @@ type CustomerProfileResponse struct {
 	LastName             string    `json:"last_name,omitempty"`
 	FullName             string    `json:"full_name"`
 	Email                string    `json:"email"`
+	AvatarURL            string    `json:"avatar_url,omitempty"`
 	BalanceToman         int64     `json:"balance_toman"`
 	Balance              int64     `json:"balance"`
 	ReferralCode         string    `json:"referral_code"`
@@ -488,6 +489,7 @@ type UpdateCustomerProfileRequest struct {
 	LastName  string `json:"last_name,omitempty"`
 	FullName  string `json:"full_name,omitempty"`
 	Email     string `json:"email,omitempty"`
+	AvatarURL string `json:"avatar_url,omitempty"`
 
 	// Corporate / Legal entity update
 	IsCorporate    *bool  `json:"is_corporate,omitempty"`

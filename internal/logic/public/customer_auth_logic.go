@@ -252,6 +252,7 @@ func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse
 		LastName:             lastName,
 		FullName:             customer.FullName,
 		Email:                customer.Email,
+		AvatarURL:            customer.AvatarURL,
 		BalanceToman:         customer.BalanceToman,
 		Balance:              customer.BalanceToman,
 		ReferralCode:         customer.ReferralCode,
@@ -329,6 +330,11 @@ func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.Updat
 		updates["email"] = trimmed
 		customer.Email = trimmed
 	}
+	if req.AvatarURL != "" {
+		trimmed := strings.TrimSpace(req.AvatarURL)
+		updates["avatar_url"] = trimmed
+		customer.AvatarURL = trimmed
+	}
 	if req.IsCorporate != nil {
 		updates["is_corporate"] = *req.IsCorporate
 		customer.IsCorporate = *req.IsCorporate
@@ -377,4 +383,173 @@ func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.Updat
 
 	resp := mapCustomerResponse(&customer)
 	return &resp, nil
+}
+
+// LoginWithPassword allows customer login via registered mobile/email and password
+func (l *CustomerAuthLogic) LoginWithPassword(req *types.PasswordLoginRequest) (*types.VerifyOTPResponse, error) {
+	ident := strings.TrimSpace(req.Identifier)
+	pwd := strings.TrimSpace(req.Password)
+	if ident == "" || pwd == "" {
+		return nil, xerr.NewErrMsg("شماره موبایل/ایمیل و کلمه عبور الزامی است")
+	}
+
+	normalizedPhone := smsir.NormalizeMobile(ident)
+
+	var customer model.Customer
+	err := l.svcCtx.DB.WithContext(l.ctx).
+		Where("phone = ? OR email = ?", normalizedPhone, ident).
+		First(&customer).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, xerr.NewErrMsg("کاربری با این مشخصات یافت نشد")
+		}
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	if !customer.IsActive {
+		return nil, xerr.NewErrMsg("حساب کاربری شما مسدود شده است. با پشتیبانی تماس بگیرید")
+	}
+
+	if customer.PasswordHash == "" {
+		return nil, xerr.NewErrMsg("برای این حساب کلمه عبور ثبت نشده است. لطفاً از طریق ارسال کد یکبار مصرف (OTP) وارد شوید")
+	}
+
+	if !customer.CheckPassword(pwd) {
+		return nil, xerr.NewErrMsg("کلمه عبور وارد شده نادرست است")
+	}
+
+	now := time.Now()
+	l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Update("last_login_at", now)
+
+	secret := l.svcCtx.Config.JWT.AccessSecret
+	token, err := middleware.GenerateCustomerToken(secret, customer.ID.String(), customer.Phone, 30)
+	if err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد توکن ورود: %w", err)
+	}
+
+	return &types.VerifyOTPResponse{
+		Token:    token,
+		IsNew:    false,
+		Customer: mapCustomerResponse(&customer),
+	}, nil
+}
+
+// OAuthSimulate seamlessly handles one-click Google / GitHub social login & profile syncing
+func (l *CustomerAuthLogic) OAuthSimulate(req *types.OAuthSimulateRequest) (*types.VerifyOTPResponse, error) {
+	provider := strings.ToLower(strings.TrimSpace(req.Provider))
+	providerID := strings.TrimSpace(req.ID)
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	name := strings.TrimSpace(req.Name)
+	avatar := strings.TrimSpace(req.Avatar)
+
+	if providerID == "" || email == "" {
+		return nil, xerr.NewErrMsg("اطلاعات حساب شبکه اجتماعی ناقص است")
+	}
+
+	var customer model.Customer
+	var err error
+
+	if provider == "google" {
+		err = l.svcCtx.DB.WithContext(l.ctx).Where("google_id = ? OR email = ?", providerID, email).First(&customer).Error
+	} else if provider == "github" {
+		err = l.svcCtx.DB.WithContext(l.ctx).Where("github_id = ? OR email = ?", providerID, email).First(&customer).Error
+	} else {
+		err = l.svcCtx.DB.WithContext(l.ctx).Where("email = ?", email).First(&customer).Error
+	}
+
+	now := time.Now()
+	isNew := false
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			isNew = true
+			syntheticPhone := fmt.Sprintf("098%s", uuid.New().String()[:8])
+			customer = model.Customer{
+				Phone:        syntheticPhone,
+				FullName:     name,
+				Email:        email,
+				AvatarURL:    avatar,
+				BalanceToman: 0,
+				IsActive:     true,
+				LastLoginAt:  &now,
+			}
+			if provider == "google" {
+				customer.GoogleID = providerID
+			} else if provider == "github" {
+				customer.GithubID = providerID
+			}
+			if err := l.svcCtx.DB.WithContext(l.ctx).Create(&customer).Error; err != nil {
+				return nil, xerr.NewErrCode(xerr.DatabaseError)
+			}
+		} else {
+			return nil, xerr.NewErrCode(xerr.DatabaseError)
+		}
+	} else {
+		if !customer.IsActive {
+			return nil, xerr.NewErrMsg("حساب کاربری شما مسدود شده است")
+		}
+
+		updates := map[string]interface{}{
+			"last_login_at": now,
+		}
+		if customer.AvatarURL == "" && avatar != "" {
+			updates["avatar_url"] = avatar
+			customer.AvatarURL = avatar
+		}
+		if (customer.FullName == "" || customer.FullName == "کاربر آناهیکس") && name != "" {
+			updates["full_name"] = name
+			customer.FullName = name
+		}
+		if provider == "google" && customer.GoogleID == "" {
+			updates["google_id"] = providerID
+			customer.GoogleID = providerID
+		}
+		if provider == "github" && customer.GithubID == "" {
+			updates["github_id"] = providerID
+			customer.GithubID = providerID
+		}
+		l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Updates(updates)
+	}
+
+	secret := l.svcCtx.Config.JWT.AccessSecret
+	token, err := middleware.GenerateCustomerToken(secret, customer.ID.String(), customer.Phone, 30)
+	if err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد توکن ورود: %w", err)
+	}
+
+	return &types.VerifyOTPResponse{
+		Token:    token,
+		IsNew:    isNew,
+		Customer: mapCustomerResponse(&customer),
+	}, nil
+}
+
+// SetPassword configures or updates the customer's permanent login password
+func (l *CustomerAuthLogic) SetPassword(customerIDStr string, req *types.SetPasswordRequest) error {
+	custUUID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		return xerr.NewErrMsg("شناسه مشتری نامعتبر است")
+	}
+
+	var customer model.Customer
+	if err := l.svcCtx.DB.WithContext(l.ctx).First(&customer, "id = ?", custUUID).Error; err != nil {
+		return xerr.NewErrMsg("حساب کاربری یافت نشد")
+	}
+
+	// If current password exists, verify it
+	if customer.PasswordHash != "" && req.CurrentPassword != "" {
+		if !customer.CheckPassword(req.CurrentPassword) {
+			return xerr.NewErrMsg("کلمه عبور فعلی نادرست است")
+		}
+	}
+
+	if len(req.NewPassword) < 6 {
+		return xerr.NewErrMsg("کلمه عبور جدید باید حداقل ۶ کاراکتر باشد")
+	}
+
+	if err := customer.SetPassword(req.NewPassword); err != nil {
+		return fmt.Errorf("خطا در ذخیره کلمه عبور: %w", err)
+	}
+
+	return l.svcCtx.DB.WithContext(l.ctx).Model(&customer).Update("password_hash", customer.PasswordHash).Error
 }

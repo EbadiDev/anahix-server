@@ -74,3 +74,48 @@ func (h *CustomerAuthHandler) UpdateMe(c *gin.Context) {
 	resp, err := l.UpdateProfile(customerID, &req)
 	result.HttpResult(c, resp, err)
 }
+
+// LoginWithPassword allows customer login via phone/email and password
+func (h *CustomerAuthHandler) LoginWithPassword(c *gin.Context) {
+	var req types.PasswordLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCustomerAuthLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.LoginWithPassword(&req)
+	result.HttpResult(c, resp, err)
+}
+
+// OAuthSimulate handles Google and GitHub social logins and profile synchronization
+func (h *CustomerAuthHandler) OAuthSimulate(c *gin.Context) {
+	var req types.OAuthSimulateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCustomerAuthLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.OAuthSimulate(&req)
+	result.HttpResult(c, resp, err)
+}
+
+// SetPassword sets or changes password for authenticated customer
+func (h *CustomerAuthHandler) SetPassword(c *gin.Context) {
+	customerID := c.GetString("customer_id")
+	if customerID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.Unauthorized))
+		return
+	}
+
+	var req types.SetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCustomerAuthLogic(c.Request.Context(), h.svcCtx)
+	err := l.SetPassword(customerID, &req)
+	result.HttpResult(c, gin.H{"updated": true}, err)
+}

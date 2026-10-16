@@ -23,20 +23,40 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 	admBIHandler := admin.NewBIAnalyticsHandler(svcCtx)
 	admLoyaltyHandler := admin.NewLoyaltyAdminHandler(svcCtx)
 	pubLoyaltyHandler := public.NewLoyaltyHandler(svcCtx)
+	pubBannerHandler := public.NewBannerHandler(svcCtx)
+	pubThemeHandler := public.NewThemeHandler(svcCtx)
+	admBannerHandler := admin.NewBannerAdminHandler(svcCtx)
+	admThemeHandler := admin.NewThemeAdminHandler(svcCtx)
+	admUploadHandler := admin.NewUploadHandler(svcCtx)
 
 	// Static assets serving (Uploaded ticket screenshots and attachments)
 	r.Static("/uploads", "./uploads")
 
 	api := r.Group("/api/v1")
 	{
-		// Customer Authentication (SMS.ir OTP)
+		// Customer Authentication (SMS.ir OTP & Multi-Method)
 		authGroup := api.Group("/auth")
 		{
 			authGroup.POST("/otp/send", custAuthHandler.SendOTP)
 			authGroup.POST("/otp/verify", custAuthHandler.VerifyOTP)
+			authGroup.POST("/password/login", custAuthHandler.LoginWithPassword)
+			authGroup.POST("/social/simulate", custAuthHandler.OAuthSimulate)
+			authGroup.POST("/password/set", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.SetPassword)
 			authGroup.GET("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.GetMe)
 			authGroup.PUT("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.UpdateMe)
 			authGroup.GET("/my-reviews", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.GetMyReviews)
+		}
+
+		// Promotional Banners & Flash Deals
+		banners := api.Group("/banners")
+		{
+			banners.GET("", pubBannerHandler.ListBanners)
+		}
+
+		// Active Event Theme & Dynamic Customization
+		system := api.Group("/system")
+		{
+			system.GET("/theme", pubThemeHandler.GetActiveTheme)
 		}
 
 		// Public Storefront Endpoints
@@ -270,6 +290,19 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.DELETE("/loyalty/tiers/:id", admLoyaltyHandler.DeleteTier)
 				protected.GET("/loyalty/settings", admLoyaltyHandler.GetSettings)
 				protected.POST("/loyalty/settings", admLoyaltyHandler.UpdateSettings)
+
+				// Banners & Promotional Campaigns Management
+				protected.GET("/banners", admBannerHandler.ListBanners)
+				protected.POST("/banners", admBannerHandler.CreateBanner)
+				protected.PUT("/banners/:id", admBannerHandler.UpdateBanner)
+				protected.DELETE("/banners/:id", admBannerHandler.DeleteBanner)
+
+				// Theme, Holiday Events & Auth Methods Management
+				protected.GET("/settings/theme", admThemeHandler.GetSettings)
+				protected.POST("/settings/theme", admThemeHandler.UpdateSettings)
+
+				// Media & Product Images Upload
+				protected.POST("/upload/media", admUploadHandler.UploadMedia)
 
 				// Backward-compatibility aliases
 				protected.GET("/settings/5sim", admHandler.GetVirtualNumberSettings)

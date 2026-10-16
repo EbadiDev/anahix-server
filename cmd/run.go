@@ -573,5 +573,8 @@ func seedInitialData(db *gorm.DB) {
 
 	// Seed Loyalty Tiers and VIP Club Configurations
 	seedLoyaltyData(db)
+
+	// Seed Promotional Banners, Holiday Theme Settings, and Flash Deals
+	seedBannersAndThemeData(db)
 }
 
