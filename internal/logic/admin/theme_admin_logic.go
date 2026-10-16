@@ -32,6 +32,7 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 	}
 
 	res := &types.ThemeSettingsResponse{
+		DefaultTheme:        "graphite",
 		EventName:           "عادی",
 		EventActive:         false,
 		PrimaryColor:        "#2563eb",
@@ -47,6 +48,10 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 
 	for _, s := range settings {
 		switch s.Key {
+		case "default_theme":
+			if s.Value != "" {
+				res.DefaultTheme = s.Value
+			}
 		case "theme_event_name":
 			res.EventName = s.Value
 		case "theme_event_active":
@@ -93,7 +98,13 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 		return "false"
 	}
 
+	defaultTheme := req.DefaultTheme
+	if defaultTheme == "" {
+		defaultTheme = "graphite"
+	}
+
 	settingsToUpsert := []model.SystemSetting{
+		{Category: "theme", Key: "default_theme", Value: defaultTheme, Type: "string", Desc: "تم سیستم طراحی پیش‌فرض سراسری سایت"},
 		{Category: "theme", Key: "theme_event_name", Value: req.EventName, Type: "string", Desc: "عنوان رویداد یا مناسبت فعال"},
 		{Category: "theme", Key: "theme_event_active", Value: boolToStr(req.EventActive), Type: "bool", Desc: "فعال‌سازی حالت رویداد و مناسبت ویژه"},
 		{Category: "theme", Key: "theme_primary_color", Value: req.PrimaryColor, Type: "string", Desc: "رنگ اصلی سازمانی و رویداد"},

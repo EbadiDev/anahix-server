@@ -29,6 +29,7 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 	}
 
 	res := &types.ThemeSettingsResponse{
+		DefaultTheme:        "graphite",
 		EventName:           "عادی",
 		EventActive:         false,
 		PrimaryColor:        "#2563eb",
@@ -44,6 +45,10 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 
 	for _, s := range settings {
 		switch s.Key {
+		case "default_theme":
+			if s.Value != "" {
+				res.DefaultTheme = s.Value
+			}
 		case "theme_event_name":
 			if s.Value != "" {
 				res.EventName = s.Value

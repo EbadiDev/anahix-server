@@ -1,6 +1,7 @@
 package types
 
 type ThemeSettingsResponse struct {
+	DefaultTheme        string `json:"default_theme"`         // "graphite", "lapis", "turquoise", "saffron", "pomegranate", "custom"
 	EventName           string `json:"event_name"`            // e.g. "نوروز ۱۴۰۵", "یلدا", "بلک فرایدی", "عادی"
 	EventActive         bool   `json:"event_active"`          // true or false
 	PrimaryColor        string `json:"primary_color"`         // hex or HSL e.g. "#2563eb"
@@ -15,6 +16,7 @@ type ThemeSettingsResponse struct {
 }
 
 type UpdateThemeSettingsRequest struct {
+	DefaultTheme        string `json:"default_theme"`
 	EventName           string `json:"event_name"`
 	EventActive         bool   `json:"event_active"`
 	PrimaryColor        string `json:"primary_color"`
