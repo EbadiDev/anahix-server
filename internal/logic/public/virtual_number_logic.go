@@ -211,6 +211,44 @@ var CountryMeta = map[string]struct {
 	"laos":         {"لائوس", "🇱🇦", "la"},
 	"nepal":        {"نپال", "🇳🇵", "np"},
 	"srilanka":     {"سری‌لانکا", "🇱🇰", "lk"},
+	"bolivia":      {"بولیوی", "🇧🇴", "bo"},
+	"uruguay":      {"اروگوئه", "🇺🇾", "uy"},
+	"paraguay":     {"پاراگوئه", "🇵🇾", "py"},
+	"panama":       {"پاناما", "🇵🇦", "pa"},
+	"costarica":    {"کاستاریکا", "🇨🇷", "cr"},
+	"guatemala":    {"گواتمالا", "🇬🇹", "gt"},
+	"honduras":     {"هندوراس", "🇭🇳", "hn"},
+	"nicaragua":    {"نیکاراگوئه", "🇳🇮", "ni"},
+	"elsalvador":   {"السالوادور", "🇸🇻", "sv"},
+	"dominican":    {"دومینیکن", "🇩🇴", "do"},
+	"jamaica":      {"جامائیکا", "🇯🇲", "jm"},
+	"trinidad":     {"ترینیداد و توباگو", "🇹🇹", "tt"},
+	"luxembourg":   {"لوکزامبورگ", "🇱🇺", "lu"},
+	"iceland":      {"ایسلند", "🇮🇸", "is"},
+	"malta":        {"مالت", "🇲🇹", "mt"},
+	"albania":      {"آلبانی", "🇦🇱", "al"},
+	"bosnia":       {"بوسنی و هرزگوین", "🇧🇦", "ba"},
+	"macedonia":    {"مقدونیه شمالی", "🇲🇰", "mk"},
+	"montenegro":   {"مونته‌نگرو", "🇲🇪", "me"},
+	"kosovo":       {"کوزوو", "🇽🇰", "xk"},
+	"belarus":      {"بلاروس", "🇧🇾", "by"},
+	"jordan":       {"اردن", "🇯🇴", "jo"},
+	"lebanon":      {"لبنان", "🇱🇧", "lb"},
+	"iraq":         {"عراق", "🇮🇶", "iq"},
+	"yemen":        {"یمن", "🇾🇪", "ye"},
+	"bahrain":      {"بحرین", "🇧🇭", "bh"},
+	"palestine":    {"فلسطین", "🇵🇸", "ps"},
+	"afghanistan":  {"افغانستان", "🇦🇫", "af"},
+	"mongolia":     {"مغولستان", "🇲🇳", "mn"},
+	"fiji":         {"فیجی", "🇫🇯", "fj"},
+	"senegal":      {"سنگال", "🇸🇳", "sn"},
+	"ivorycoast":   {"ساحل عاج", "🇨🇮", "ci"},
+	"cameroon":     {"کامرون", "🇨🇲", "cm"},
+	"uganda":       {"اوگاندا", "🇺🇬", "ug"},
+	"tanzania":     {"تانزانیا", "🇹🇿", "tz"},
+	"zambia":       {"زامبیا", "🇿🇲", "zm"},
+	"zimbabwe":     {"زیمبابوه", "🇿🇼", "zw"},
+	"ethiopia":     {"اتیوپی", "🇪🇹", "et"},
 }
 
 // ListServices returns all active services dynamically fetched from 5SIM
@@ -405,6 +443,13 @@ func (l *VirtualNumberLogic) ListCountriesForService(service string) ([]types.Vi
 			countryCode = meta.Code
 			if meta.Code != "" {
 				flagURL = fmt.Sprintf("https://flagcdn.com/w40/%s.png", meta.Code)
+			}
+		} else {
+			// Universal fallback to ISO 3166-1 alpha-2 code
+			cleaned := strings.ToLower(strings.ReplaceAll(country, " ", ""))
+			if len(cleaned) >= 2 {
+				countryCode = cleaned[:2]
+				flagURL = fmt.Sprintf("https://flagcdn.com/w40/%s.png", countryCode)
 			}
 		}
 
