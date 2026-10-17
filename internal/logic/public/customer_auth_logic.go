@@ -330,6 +330,13 @@ func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.Updat
 		updates["email"] = trimmed
 		customer.Email = trimmed
 	}
+	if req.Phone != "" {
+		cleaned := smsir.NormalizeMobile(req.Phone)
+		if cleaned != "" {
+			updates["phone"] = cleaned
+			customer.Phone = cleaned
+		}
+	}
 	if req.AvatarURL != "" {
 		trimmed := strings.TrimSpace(req.AvatarURL)
 		updates["avatar_url"] = trimmed
@@ -430,6 +437,74 @@ func (l *CustomerAuthLogic) LoginWithPassword(req *types.PasswordLoginRequest) (
 	return &types.VerifyOTPResponse{
 		Token:    token,
 		IsNew:    false,
+		Customer: mapCustomerResponse(&customer),
+	}, nil
+}
+
+// RegisterWithPassword allows direct customer registration via email and password
+func (l *CustomerAuthLogic) RegisterWithPassword(req *types.RegisterWithPasswordRequest) (*types.VerifyOTPResponse, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	pwd := strings.TrimSpace(req.Password)
+	fullName := strings.TrimSpace(req.FullName)
+	phone := strings.TrimSpace(req.Phone)
+
+	if email == "" || !strings.Contains(email, "@") {
+		return nil, xerr.NewErrMsg("لطفاً یک آدرس ایمیل معتبر وارد کنید")
+	}
+	if len(pwd) < 6 {
+		return nil, xerr.NewErrMsg("کلمه عبور باید حداقل ۶ کاراکتر باشد")
+	}
+
+	// Check if email already registered
+	var emailCount int64
+	l.svcCtx.DB.WithContext(l.ctx).Model(&model.Customer{}).Where("email = ?", email).Count(&emailCount)
+	if emailCount > 0 {
+		return nil, xerr.NewErrMsg("این آدرس ایمیل قبلاً در سامانه ثبت شده است. لطفاً وارد شوید")
+	}
+
+	cleanPhone := phone
+	if cleanPhone != "" {
+		cleanPhone = smsir.NormalizeMobile(cleanPhone)
+		var phoneCount int64
+		l.svcCtx.DB.WithContext(l.ctx).Model(&model.Customer{}).Where("phone = ?", cleanPhone).Count(&phoneCount)
+		if phoneCount > 0 {
+			return nil, xerr.NewErrMsg("این شماره موبایل قبلاً در سامانه ثبت شده است")
+		}
+	} else {
+		cleanPhone = fmt.Sprintf("098%s", uuid.New().String()[:8])
+	}
+
+	if fullName == "" {
+		fullName = strings.Split(email, "@")[0]
+	}
+
+	now := time.Now()
+	customer := model.Customer{
+		Phone:        cleanPhone,
+		FullName:     fullName,
+		Email:        email,
+		BalanceToman: 0,
+		IsActive:     true,
+		LastLoginAt:  &now,
+	}
+
+	if err := customer.SetPassword(pwd); err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد کلمه عبور: %w", err)
+	}
+
+	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&customer).Error; err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	secret := l.svcCtx.Config.JWT.AccessSecret
+	token, err := middleware.GenerateCustomerToken(secret, customer.ID.String(), customer.Phone, 30)
+	if err != nil {
+		return nil, fmt.Errorf("خطا در ایجاد توکن ورود: %w", err)
+	}
+
+	return &types.VerifyOTPResponse{
+		Token:    token,
+		IsNew:    true,
 		Customer: mapCustomerResponse(&customer),
 	}, nil
 }

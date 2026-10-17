@@ -501,6 +501,7 @@ type UpdateCustomerProfileRequest struct {
 	LastName  string `json:"last_name,omitempty"`
 	FullName  string `json:"full_name,omitempty"`
 	Email     string `json:"email,omitempty"`
+	Phone     string `json:"phone,omitempty"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 
 	// Corporate / Legal entity update

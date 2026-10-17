@@ -88,6 +88,19 @@ func (h *CustomerAuthHandler) LoginWithPassword(c *gin.Context) {
 	result.HttpResult(c, resp, err)
 }
 
+// RegisterWithPassword allows direct customer registration via email and password
+func (h *CustomerAuthHandler) RegisterWithPassword(c *gin.Context) {
+	var req types.RegisterWithPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewCustomerAuthLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.RegisterWithPassword(&req)
+	result.HttpResult(c, resp, err)
+}
+
 // OAuthSimulate handles Google and GitHub social logins and profile synchronization
 func (h *CustomerAuthHandler) OAuthSimulate(c *gin.Context) {
 	var req types.OAuthSimulateRequest

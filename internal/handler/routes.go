@@ -28,6 +28,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 	admBannerHandler := admin.NewBannerAdminHandler(svcCtx)
 	admThemeHandler := admin.NewThemeAdminHandler(svcCtx)
 	admUploadHandler := admin.NewUploadHandler(svcCtx)
+	pubNotifHandler := public.NewNotificationHandler(svcCtx)
 
 	// Static assets serving (Uploaded ticket screenshots and attachments)
 	r.Static("/uploads", "./uploads")
@@ -40,6 +41,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			authGroup.POST("/otp/send", custAuthHandler.SendOTP)
 			authGroup.POST("/otp/verify", custAuthHandler.VerifyOTP)
 			authGroup.POST("/password/login", custAuthHandler.LoginWithPassword)
+			authGroup.POST("/register", custAuthHandler.RegisterWithPassword)
 			authGroup.POST("/social/simulate", custAuthHandler.OAuthSimulate)
 			authGroup.POST("/password/set", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.SetPassword)
 			authGroup.GET("/me", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), custAuthHandler.GetMe)
@@ -126,6 +128,15 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			tickets.POST("/:id/close", pubTicketHandler.CloseTicket)
 			tickets.POST("/:id/rate", pubTicketHandler.RateTicket)
 			tickets.POST("/upload", pubTicketHandler.UploadAttachment)
+		}
+
+		// In-App Customer Notifications
+		notifs := api.Group("/notifications")
+		notifs.Use(middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret))
+		{
+			notifs.GET("", pubNotifHandler.ListNotifications)
+			notifs.POST("/:id/read", pubNotifHandler.MarkAsRead)
+			notifs.POST("/read-all", pubNotifHandler.MarkAllAsRead)
 		}
 
 		// Content Taxonomies (Categories, Templates & Service Targets)
@@ -222,6 +233,9 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.POST("/orders/:order_id/2fa-request", admHandler.RequestTwoFactor)
 				protected.POST("/orders/:order_id/complete", admHandler.CompleteOrder)
 				protected.GET("/orders/:order_id/invoice", admHandler.GetOrderInvoice)
+
+				// Notification Metrics & BI
+				protected.GET("/notifications/stats", pubNotifHandler.GetAdminNotificationStats)
 
 				// Official Corporate Billing & Tax Settings
 				protected.GET("/settings/billing", admHandler.GetBillingSettings)
