@@ -2,6 +2,7 @@ package public
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -10,6 +11,30 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// getRealClientIP extracts genuine visitor IP considering Cloudflare, reverse proxies & load balancers
+func getRealClientIP(c *gin.Context) string {
+	if cf := strings.TrimSpace(c.GetHeader("CF-Connecting-IP")); cf != "" {
+		return cf
+	}
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if len(parts) > 0 {
+			ip := strings.TrimSpace(parts[0])
+			if ip != "" {
+				return ip
+			}
+		}
+	}
+	if xrip := strings.TrimSpace(c.GetHeader("X-Real-IP")); xrip != "" {
+		return xrip
+	}
+	ip := strings.TrimSpace(c.ClientIP())
+	if ip == "" || ip == "::1" {
+		return "127.0.0.1"
+	}
+	return ip
+}
 
 type ContentHandler struct {
 	svcCtx *svc.ServiceContext
@@ -44,7 +69,7 @@ func (h *ContentHandler) ListArticles(c *gin.Context) {
 func (h *ContentHandler) GetArticleDetail(c *gin.Context) {
 	slug := c.Param("slug")
 	l := public.NewContentLogic(c.Request.Context(), h.svcCtx)
-	resp, err := l.GetArticleBySlug(slug)
+	resp, err := l.GetArticleBySlug(slug, getRealClientIP(c))
 	result.HttpResult(c, resp, err)
 }
 
@@ -69,12 +94,19 @@ func (h *ContentHandler) SubmitComment(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "ok"}, err)
 }
 
-// LikeArticle handles public like action for an article
+// LikeArticle handles public like action for an article with toggle support
 func (h *ContentHandler) LikeArticle(c *gin.Context) {
 	slug := c.Param("slug")
+	voterKey := getRealClientIP(c)
+	if custID := c.GetString("customer_id"); custID != "" {
+		voterKey = custID
+	} else if cPhone := c.GetString("customer_phone"); cPhone != "" {
+		voterKey = cPhone
+	}
+
 	l := public.NewContentLogic(c.Request.Context(), h.svcCtx)
-	newLikeCount, err := l.LikeArticle(slug)
-	result.HttpResult(c, gin.H{"like_count": newLikeCount}, err)
+	newLikeCount, isLiked, err := l.LikeArticle(slug, voterKey)
+	result.HttpResult(c, gin.H{"like_count": newLikeCount, "is_liked": isLiked}, err)
 }
 
 // ListHelpGuides returns paginated knowledge base guides
@@ -94,11 +126,11 @@ func (h *ContentHandler) ListHelpGuides(c *gin.Context) {
 func (h *ContentHandler) GetHelpGuideDetail(c *gin.Context) {
 	slug := c.Param("slug")
 	l := public.NewContentLogic(c.Request.Context(), h.svcCtx)
-	resp, err := l.GetHelpGuideBySlug(slug)
+	resp, err := l.GetHelpGuideBySlug(slug, getRealClientIP(c))
 	result.HttpResult(c, resp, err)
 }
 
-// VoteHelpGuide handles helpful / unhelpful voting
+// VoteHelpGuide handles helpful / unhelpful voting with toggle support
 func (h *ContentHandler) VoteHelpGuide(c *gin.Context) {
 	slug := c.Param("slug")
 	var req types.GuideFeedbackRequest
@@ -107,14 +139,16 @@ func (h *ContentHandler) VoteHelpGuide(c *gin.Context) {
 		return
 	}
 
-	voterKey := c.ClientIP()
-	if cPhone := c.GetString("customer_phone"); cPhone != "" {
+	voterKey := getRealClientIP(c)
+	if custID := c.GetString("customer_id"); custID != "" {
+		voterKey = custID
+	} else if cPhone := c.GetString("customer_phone"); cPhone != "" {
 		voterKey = cPhone
 	}
 
 	l := public.NewContentLogic(c.Request.Context(), h.svcCtx)
-	err := l.VoteHelpGuide(slug, req.IsHelpful, voterKey)
-	result.HttpResult(c, gin.H{"status": "recorded"}, err)
+	yes, no, status, err := l.VoteHelpGuide(slug, req.IsHelpful, voterKey)
+	result.HttpResult(c, gin.H{"helpful_yes": yes, "helpful_no": no, "status": status}, err)
 }
 
 // ListTemplates returns pre-built drafting templates from DB

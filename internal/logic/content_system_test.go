@@ -69,7 +69,7 @@ func TestBlogArticleLifecycle(t *testing.T) {
 	assert.True(t, len(created.TableOfContents) >= 2, "TOC should contain extracted headings")
 
 	// 2. Fetch Public Article by Slug
-	detail, err := pubLogic.GetArticleBySlug("how-to-buy-gemini-test")
+	detail, err := pubLogic.GetArticleBySlug("how-to-buy-gemini-test", "127.0.0.1")
 	assert.NoError(t, err)
 	assert.Equal(t, created.Title, detail.Title)
 	assert.Equal(t, "آموزش و ترفندها", detail.CategoryName)
@@ -111,7 +111,7 @@ func TestBlogArticleLifecycle(t *testing.T) {
 	err = adminLogic.DeleteArticle(created.ID)
 	assert.NoError(t, err)
 
-	_, err = pubLogic.GetArticleBySlug("how-to-buy-gemini-test")
+	_, err = pubLogic.GetArticleBySlug("how-to-buy-gemini-test", "127.0.0.1")
 	assert.Error(t, err)
 }
 
@@ -143,20 +143,30 @@ func TestHelpGuideLifecycleAndVoting(t *testing.T) {
 	assert.Equal(t, "fix-claude-403-test", created.Slug)
 
 	// 2. Public Detail
-	guideDetail, err := pubLogic.GetHelpGuideBySlug("fix-claude-403-test")
+	guideDetail, err := pubLogic.GetHelpGuideBySlug("fix-claude-403-test", "127.0.0.1")
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), guideDetail.HelpfulYes)
 
 	// 3. User Votes Helpful (👍)
-	err = pubLogic.VoteHelpGuide("fix-claude-403-test", true, "192.168.1.50")
+	yes, no, status, err := pubLogic.VoteHelpGuide("fix-claude-403-test", true, "192.168.1.50")
 	assert.NoError(t, err)
+	assert.Equal(t, "voted", status)
+	assert.Equal(t, int64(1), yes)
+	assert.Equal(t, int64(0), no)
 
-	// Prevent duplicate vote from same voterKey
-	err = pubLogic.VoteHelpGuide("fix-claude-403-test", true, "192.168.1.50")
-	assert.Error(t, err, "Duplicate vote should be rejected")
+	// User clicks same button again -> Toggle/Cancel vote
+	yes, no, status, err = pubLogic.VoteHelpGuide("fix-claude-403-test", true, "192.168.1.50")
+	assert.NoError(t, err)
+	assert.Equal(t, "cancelled", status)
+	assert.Equal(t, int64(0), yes)
+
+	// User votes again to leave it positive
+	yes, no, status, err = pubLogic.VoteHelpGuide("fix-claude-403-test", true, "192.168.1.50")
+	assert.NoError(t, err)
+	assert.Equal(t, "voted", status)
 
 	// Another user votes Unhelpful (👎)
-	err = pubLogic.VoteHelpGuide("fix-claude-403-test", false, "192.168.1.51")
+	_, _, _, err = pubLogic.VoteHelpGuide("fix-claude-403-test", false, "192.168.1.51")
 	assert.NoError(t, err)
 
 	// Verify vote counts in DB

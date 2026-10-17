@@ -231,6 +231,12 @@ func (l *CustomerAuthLogic) VerifyOTP(req *types.VerifyOTPRequest) (*types.Verif
 	}, nil
 }
 
+var syntheticPhoneRegex = regexp.MustCompile(`^098[0-9a-fA-F]{8}$`)
+
+func isSyntheticPhone(phone string) bool {
+	return syntheticPhoneRegex.MatchString(phone)
+}
+
 func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse {
 	firstName := customer.FirstName
 	lastName := customer.LastName
@@ -244,10 +250,15 @@ func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse
 		}
 	}
 
+	displayPhone := customer.Phone
+	if isSyntheticPhone(displayPhone) {
+		displayPhone = ""
+	}
+
 	return types.CustomerProfileResponse{
 		ID:                   customer.ID.String(),
-		Phone:                customer.Phone,
-		Mobile:               customer.Phone,
+		Phone:                displayPhone,
+		Mobile:               displayPhone,
 		FirstName:            firstName,
 		LastName:             lastName,
 		FullName:             customer.FullName,

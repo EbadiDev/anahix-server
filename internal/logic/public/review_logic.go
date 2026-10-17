@@ -464,12 +464,18 @@ func (l *ReviewLogic) VoteHelpful(reviewIDStr string, voterKey string) (int, err
 		voterKey = "anon"
 	}
 
-	// Check if already voted
+	// Check if already voted -> Toggle (Cancel if already voted)
 	var existing model.ReviewHelpfulVote
 	if err := l.svcCtx.DB.WithContext(l.ctx).
 		Where("review_id = ? AND voter_key = ?", revUUID, voterKey).
 		First(&existing).Error; err == nil {
-		return rev.HelpfulCount, nil // already voted
+		l.svcCtx.DB.WithContext(l.ctx).Delete(&existing)
+		newCount := rev.HelpfulCount - 1
+		if newCount < 0 {
+			newCount = 0
+		}
+		l.svcCtx.DB.WithContext(l.ctx).Model(&rev).Update("helpful_count", newCount)
+		return newCount, nil
 	}
 
 	vote := model.ReviewHelpfulVote{

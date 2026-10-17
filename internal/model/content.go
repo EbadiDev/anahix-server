@@ -209,6 +209,51 @@ func (c *ArticleComment) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// ArticleLike tracks article likes per voter/user to support persistent toggle (like / unlike)
+type ArticleLike struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ArticleID uuid.UUID `gorm:"type:uuid;not null;index" json:"article_id"`
+	VoterKey  string    `gorm:"size:120;not null;index" json:"voter_key"` // IP or customer ID
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (a *ArticleLike) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return nil
+}
+
+// ArticleView tracks unique article views per IP in database
+type ArticleView struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	ArticleID uuid.UUID `gorm:"type:uuid;index;not null" json:"article_id"`
+	IP        string    `gorm:"size:64;index;not null" json:"ip"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+}
+
+func (v *ArticleView) BeforeCreate(tx *gorm.DB) error {
+	if v.ID == uuid.Nil {
+		v.ID = uuid.New()
+	}
+	return nil
+}
+
+// HelpGuideView tracks unique help guide views per IP in database
+type HelpGuideView struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	GuideID   uuid.UUID `gorm:"type:uuid;index;not null" json:"guide_id"`
+	IP        string    `gorm:"size:64;index;not null" json:"ip"`
+	CreatedAt time.Time `gorm:"index" json:"created_at"`
+}
+
+func (v *HelpGuideView) BeforeCreate(tx *gorm.DB) error {
+	if v.ID == uuid.Nil {
+		v.ID = uuid.New()
+	}
+	return nil
+}
+
 // GuideFeedback prevents repeated helpful/unhelpful votes from the same IP/voter
 type GuideFeedback struct {
 	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`

@@ -177,8 +177,8 @@ func (l *ContentLogic) ListArticles(page, pageSize int, categorySlug, tag, searc
 	}, nil
 }
 
-// GetArticleBySlug returns single article with incremented view count, TOC, related articles & comments
-func (l *ContentLogic) GetArticleBySlug(slug string) (*types.ArticleDetailDTO, error) {
+// GetArticleBySlug returns single article with persistent unique IP view tracking in database
+func (l *ContentLogic) GetArticleBySlug(slug string, clientIP string) (*types.ArticleDetailDTO, error) {
 	var a model.Article
 	if err := l.svcCtx.DB.WithContext(l.ctx).
 		Where("slug = ? AND is_published = ?", slug, true).
@@ -186,10 +186,26 @@ func (l *ContentLogic) GetArticleBySlug(slug string) (*types.ArticleDetailDTO, e
 		return nil, xerr.NewErrMsg("مقاله مورد نظر یافت نشد")
 	}
 
-	// Atomically increment view count in database and sync to struct
-	_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.Article{}).Where("id = ?", a.ID).
-		UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
-	a.ViewCount += 1
+	if clientIP == "" {
+		clientIP = "127.0.0.1"
+	}
+
+	// Unique IP view tracking in database
+	var existingView model.ArticleView
+	viewErr := l.svcCtx.DB.WithContext(l.ctx).
+		Where("article_id = ? AND ip = ?", a.ID, clientIP).
+		First(&existingView).Error
+
+	if viewErr != nil {
+		newView := model.ArticleView{
+			ArticleID: a.ID,
+			IP:        clientIP,
+		}
+		_ = l.svcCtx.DB.WithContext(l.ctx).Create(&newView).Error
+		_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.Article{}).Where("id = ?", a.ID).
+			UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+		a.ViewCount += 1
+	}
 
 	// Parse Table of Contents
 	var toc []types.TOCItemDTO
@@ -287,7 +303,7 @@ func (l *ContentLogic) GetArticleBySlug(slug string) (*types.ArticleDetailDTO, e
 		AuthorRole:          a.AuthorRole,
 		AuthorAvatar:        a.AuthorAvatar,
 		ReadingTimeMinutes:  a.ReadingTimeMinutes,
-		ViewCount:           a.ViewCount + 1,
+		ViewCount:           a.ViewCount,
 		LikeCount:           a.LikeCount,
 		IsFeatured:          a.IsFeatured,
 		IsPublished:         a.IsPublished,
@@ -408,8 +424,8 @@ func (l *ContentLogic) ListHelpGuides(page, pageSize int, categorySlug, serviceT
 	}, nil
 }
 
-// GetHelpGuideBySlug returns single knowledge base guide with incremented view count, TOC & related guides
-func (l *ContentLogic) GetHelpGuideBySlug(slug string) (*types.HelpGuideDetailDTO, error) {
+// GetHelpGuideBySlug returns single knowledge base guide with persistent unique IP view tracking in database
+func (l *ContentLogic) GetHelpGuideBySlug(slug string, clientIP string) (*types.HelpGuideDetailDTO, error) {
 	var g model.HelpGuide
 	if err := l.svcCtx.DB.WithContext(l.ctx).
 		Where("slug = ? AND is_published = ?", slug, true).
@@ -417,11 +433,26 @@ func (l *ContentLogic) GetHelpGuideBySlug(slug string) (*types.HelpGuideDetailDT
 		return nil, xerr.NewErrMsg("راهنمای مورد نظر یافت نشد")
 	}
 
-	// Increment view count asynchronously
-	go func(id uuid.UUID) {
-		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", id).
-			UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
-	}(g.ID)
+	if clientIP == "" {
+		clientIP = "127.0.0.1"
+	}
+
+	// Unique IP view tracking in database
+	var existingView model.HelpGuideView
+	viewErr := l.svcCtx.DB.WithContext(l.ctx).
+		Where("guide_id = ? AND ip = ?", g.ID, clientIP).
+		First(&existingView).Error
+
+	if viewErr != nil {
+		newView := model.HelpGuideView{
+			GuideID: g.ID,
+			IP:      clientIP,
+		}
+		_ = l.svcCtx.DB.WithContext(l.ctx).Create(&newView).Error
+		_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.HelpGuide{}).Where("id = ?", g.ID).
+			UpdateColumn("view_count", gorm.Expr("view_count + ?", 1)).Error
+		g.ViewCount += 1
+	}
 
 	// Parse Table of Contents
 	var toc []types.TOCItemDTO
@@ -502,11 +533,11 @@ func (l *ContentLogic) GetHelpGuideBySlug(slug string) (*types.HelpGuideDetailDT
 	}, nil
 }
 
-// VoteHelpGuide records helpful or unhelpful feedback for the guide
-func (l *ContentLogic) VoteHelpGuide(slug string, isHelpful bool, voterKey string) error {
+// VoteHelpGuide records or toggles helpful / unhelpful feedback for the guide
+func (l *ContentLogic) VoteHelpGuide(slug string, isHelpful bool, voterKey string) (int64, int64, string, error) {
 	var g model.HelpGuide
 	if err := l.svcCtx.DB.WithContext(l.ctx).Where("slug = ?", slug).First(&g).Error; err != nil {
-		return xerr.NewErrMsg("راهنمای مورد نظر یافت نشد")
+		return 0, 0, "", xerr.NewErrMsg("راهنمای مورد نظر یافت نشد")
 	}
 
 	if voterKey == "" {
@@ -520,8 +551,47 @@ func (l *ContentLogic) VoteHelpGuide(slug string, isHelpful bool, voterKey strin
 		First(&existing).Error
 
 	if err == nil {
-		// Already voted
-		return xerr.NewErrMsg("شما قبلاً بازخورد خود را برای این راهنما ثبت کرده‌اید")
+		// Existing vote found
+		if existing.IsHelpful == isHelpful {
+			// User clicked same button again -> Toggle OFF (Cancel vote)
+			if err := l.svcCtx.DB.WithContext(l.ctx).Delete(&existing).Error; err != nil {
+				return g.HelpfulYes, g.HelpfulNo, "", xerr.NewErrCode(xerr.DatabaseError)
+			}
+			if isHelpful {
+				if g.HelpfulYes > 0 {
+					g.HelpfulYes--
+				}
+				l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).Update("helpful_yes", g.HelpfulYes)
+			} else {
+				if g.HelpfulNo > 0 {
+					g.HelpfulNo--
+				}
+				l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).Update("helpful_no", g.HelpfulNo)
+			}
+			return g.HelpfulYes, g.HelpfulNo, "cancelled", nil
+		}
+
+		// User switched vote (from helpful to unhelpful or vice versa)
+		existing.IsHelpful = isHelpful
+		if err := l.svcCtx.DB.WithContext(l.ctx).Save(&existing).Error; err != nil {
+			return g.HelpfulYes, g.HelpfulNo, "", xerr.NewErrCode(xerr.DatabaseError)
+		}
+		if isHelpful {
+			g.HelpfulYes++
+			if g.HelpfulNo > 0 {
+				g.HelpfulNo--
+			}
+		} else {
+			g.HelpfulNo++
+			if g.HelpfulYes > 0 {
+				g.HelpfulYes--
+			}
+		}
+		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).Updates(map[string]interface{}{
+			"helpful_yes": g.HelpfulYes,
+			"helpful_no":  g.HelpfulNo,
+		})
+		return g.HelpfulYes, g.HelpfulNo, "switched", nil
 	}
 
 	// Record vote
@@ -531,19 +601,19 @@ func (l *ContentLogic) VoteHelpGuide(slug string, isHelpful bool, voterKey strin
 		IsHelpful: isHelpful,
 	}
 	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&feedback).Error; err != nil {
-		return xerr.NewErrCode(xerr.DatabaseError)
+		return g.HelpfulYes, g.HelpfulNo, "", xerr.NewErrCode(xerr.DatabaseError)
 	}
 
 	// Increment counter
 	if isHelpful {
-		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).
-			UpdateColumn("helpful_yes", gorm.Expr("helpful_yes + ?", 1))
+		g.HelpfulYes++
+		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).Update("helpful_yes", g.HelpfulYes)
 	} else {
-		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).
-			UpdateColumn("helpful_no", gorm.Expr("helpful_no + ?", 1))
+		g.HelpfulNo++
+		l.svcCtx.DB.Model(&model.HelpGuide{}).Where("id = ?", g.ID).Update("helpful_no", g.HelpfulNo)
 	}
 
-	return nil
+	return g.HelpfulYes, g.HelpfulNo, "voted", nil
 }
 
 // extractTOCFromContent scans Markdown or HTML headings (#, ##, <h2>, <h3>) to build Table of Contents
@@ -646,20 +716,47 @@ func (l *ContentLogic) ListServiceTargets() ([]types.ServiceTargetDTO, error) {
 	return res, nil
 }
 
-// LikeArticle increments like_count for an article and persists in DB
-func (l *ContentLogic) LikeArticle(slug string) (int64, error) {
+// LikeArticle toggles like_count for an article and persists in DB per voter
+func (l *ContentLogic) LikeArticle(slug string, voterKey string) (int64, bool, error) {
 	var article model.Article
 	err := l.svcCtx.DB.WithContext(l.ctx).
 		Where("slug = ? AND is_published = ?", slug, true).
 		First(&article).Error
 	if err != nil {
-		return 0, xerr.NewErrMsg("مقاله مورد نظر یافت نشد")
+		return 0, false, xerr.NewErrMsg("مقاله مورد نظر یافت نشد")
+	}
+
+	if voterKey == "" {
+		voterKey = "anon"
+	}
+
+	var existing model.ArticleLike
+	likeErr := l.svcCtx.DB.WithContext(l.ctx).
+		Where("article_id = ? AND voter_key = ?", article.ID, voterKey).
+		First(&existing).Error
+
+	if likeErr == nil {
+		// Already liked -> Toggle OFF (Unlike)
+		if err := l.svcCtx.DB.WithContext(l.ctx).Delete(&existing).Error; err != nil {
+			return article.LikeCount, true, xerr.NewErrCode(xerr.DatabaseError)
+		}
+		if article.LikeCount > 0 {
+			article.LikeCount--
+		}
+		l.svcCtx.DB.WithContext(l.ctx).Model(&article).Update("like_count", article.LikeCount)
+		return article.LikeCount, false, nil
+	}
+
+	// Not liked yet -> Toggle ON (Like)
+	newLike := model.ArticleLike{
+		ArticleID: article.ID,
+		VoterKey:  voterKey,
+	}
+	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&newLike).Error; err != nil {
+		return article.LikeCount, false, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
 	article.LikeCount++
-	if err := l.svcCtx.DB.WithContext(l.ctx).Model(&article).Update("like_count", article.LikeCount).Error; err != nil {
-		return 0, xerr.NewErrCode(xerr.DatabaseError)
-	}
-
-	return article.LikeCount, nil
+	l.svcCtx.DB.WithContext(l.ctx).Model(&article).Update("like_count", article.LikeCount)
+	return article.LikeCount, true, nil
 }

@@ -175,13 +175,18 @@ func TestVerifiedBuyerReviewAndModerationWorkflow(t *testing.T) {
 	assert.Equal(t, "سلام و درود؛ از نظر پرمهر شما متشکریم.", pubResWithReply.Reviews[0].AdminReply)
 	assert.Equal(t, "پشتیبانی رسمی آناهیکس", pubResWithReply.Reviews[0].AdminReplyAuthor)
 
-	// 10. Helpful upvoting
+	// 10. Helpful upvoting & toggle cancellation
 	newHelpful, err := reviewLogic.VoteHelpful(submitResp.ReviewID, "user-ip-1")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, newHelpful)
 
-	// Duplicate vote by same key does not increment
-	dupHelpful, err := reviewLogic.VoteHelpful(submitResp.ReviewID, "user-ip-1")
+	// Toggle vote by same key cancels the vote
+	cancelledHelpful, err := reviewLogic.VoteHelpful(submitResp.ReviewID, "user-ip-1")
 	assert.NoError(t, err)
-	assert.Equal(t, 1, dupHelpful)
+	assert.Equal(t, 0, cancelledHelpful)
+
+	// Voting again restores the helpful vote
+	restoredHelpful, err := reviewLogic.VoteHelpful(submitResp.ReviewID, "user-ip-1")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, restoredHelpful)
 }

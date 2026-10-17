@@ -86,6 +86,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.LoyaltyTier{},
 		&model.Banner{},
 		&model.CustomerNotification{},
+		&model.ArticleLike{},
+		&model.ArticleView{},
+		&model.HelpGuideView{},
 	)
 }
 

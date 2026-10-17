@@ -123,8 +123,23 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Created initial admin user: 'admin' (password: 'admin123456')")
 	}
 
-	// Ensure system owner phone is granted admin status
-	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
+	// Ensure system owner email and phone are granted admin status
+	db.Model(&model.Customer{}).Where("email = ? OR phone = ?", "yasinnasiry18@gmail.com", "09928376377").Update("is_admin", true)
+
+	// Ensure AdminUser with username yasinnasiry18@gmail.com exists
+	var yasinAdmin model.AdminUser
+	if err := db.Where("username = ?", "yasinnasiry18@gmail.com").First(&yasinAdmin).Error; err != nil {
+		adminYasin := model.AdminUser{
+			ID:       uuid.New(),
+			Username: "yasinnasiry18@gmail.com",
+			FullName: "محمد یاسین (مدیر ارشد)",
+			Role:     model.RoleSuperAdmin,
+			IsActive: true,
+		}
+		_ = adminYasin.SetPassword("admin123456")
+		db.Create(&adminYasin)
+		log.Println("🌱 Created admin account for 'yasinnasiry18@gmail.com'")
+	}
 
 	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)
 	var paymentCount int64
