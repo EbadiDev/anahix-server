@@ -310,6 +310,28 @@ func (l *BIAnalyticsLogic) GetOverview(req *types.AdminBIOverviewRequest) (*type
 		return math.Round((float64(toman)/effectiveUSDRate)*100) / 100
 	}
 
+	var totalRegUsers int64
+	l.svcCtx.DB.WithContext(l.ctx).Model(&model.Customer{}).Count(&totalRegUsers)
+
+	var newRegUsers int64
+	l.svcCtx.DB.WithContext(l.ctx).Model(&model.Customer{}).Where("created_at >= ? AND created_at <= ?", startTime, endTime).Count(&newRegUsers)
+
+	var articleStats struct {
+		TotalViews int64
+		TotalLikes int64
+	}
+	l.svcCtx.DB.WithContext(l.ctx).Model(&model.Article{}).
+		Select("COALESCE(SUM(view_count), 0) as total_views, COALESCE(SUM(like_count), 0) as total_likes").
+		Scan(&articleStats)
+
+	var helpStats struct {
+		TotalViews   int64
+		TotalHelpful int64
+	}
+	l.svcCtx.DB.WithContext(l.ctx).Model(&model.HelpGuide{}).
+		Select("COALESCE(SUM(view_count), 0) as total_views, COALESCE(SUM(helpful_count), 0) as total_helpful").
+		Scan(&helpStats)
+
 	kpis := types.AdminBIKPIs{
 		TotalRevenueToman:      totalRevenueToman,
 		TotalRevenueUSDT:       toUSDT(totalRevenueToman),
@@ -324,10 +346,16 @@ func (l *BIAnalyticsLogic) GetOverview(req *types.AdminBIOverviewRequest) (*type
 		AverageOrderValueToman: aovToman,
 		AverageOrderValueUSDT:  toUSDT(aovToman),
 		TotalCustomers:         int64(len(uniqueCustomers)),
+		TotalRegisteredUsers:   totalRegUsers,
+		NewRegisteredUsers:     newRegUsers,
 		VirtualNumbersRevenue:  vnRevenue,
 		VirtualNumbersCount:    vnCount,
 		StoreProductsRevenue:   storeProductsRevenue,
 		StoreProductsCount:     storeProductsCount,
+		TotalArticleViews:      articleStats.TotalViews,
+		TotalArticleLikes:      articleStats.TotalLikes,
+		TotalHelpViews:         helpStats.TotalViews,
+		TotalHelpfulVotes:      helpStats.TotalHelpful,
 	}
 
 	// 5. Build Sorted Time Series List

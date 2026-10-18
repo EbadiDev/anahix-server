@@ -3,6 +3,7 @@ package admin
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
@@ -75,6 +76,61 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		Username: user.Username,
 		FullName: user.FullName,
 		Role:     string(user.Role),
+	}, nil)
+}
+
+func (h *AdminHandler) ExchangeCustomerToken(c *gin.Context) {
+	custIDVal, exists := c.Get("customer_id")
+	if !exists {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, result.Error(xerr.Unauthorized, "لطفاً ابتدا وارد حساب کاربری خود شوید"))
+		return
+	}
+	custUUID, err := uuid.Parse(custIDVal.(string))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, result.Error(xerr.Unauthorized, "شناسه کاربر نامعتبر است"))
+		return
+	}
+
+	var cust model.Customer
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Where("id = ? AND is_active = ?", custUUID, true).First(&cust).Error; err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, result.Error(xerr.Unauthorized, "کاربر یافت نشد"))
+		return
+	}
+
+	if !cust.IsAdmin {
+		c.AbortWithStatusJSON(http.StatusForbidden, result.Error(xerr.Forbidden, "این حساب کاربری دسترسی مدیریت ندارد"))
+		return
+	}
+
+	username := cust.Email
+	if username == "" {
+		username = cust.Phone
+	}
+
+	fullName := cust.FullName
+	if fullName == "" {
+		fullName = "مدیر سیستم"
+	}
+
+	token, err := middleware.GenerateAdminToken(
+		h.svcCtx.Config.JWT.AccessSecret,
+		cust.ID.String(),
+		username,
+		"super_admin",
+		h.svcCtx.Config.JWT.AccessExpireHours,
+	)
+	if err != nil {
+		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ERROR))
+		return
+	}
+
+	audit.LogAdminActionAsync(h.svcCtx.DB, &cust.ID, username, "AUTH_EXCHANGE", "auth", cust.ID.String(), "ورود خودکار مدیر از طریق حساب کاربری تاییدشده", nil, c.ClientIP(), c.Request.UserAgent())
+
+	result.HttpResult(c, &types.AdminLoginResponse{
+		Token:    token,
+		Username: username,
+		FullName: fullName,
+		Role:     "super_admin",
 	}, nil)
 }
 

@@ -25,10 +25,16 @@ type AdminBIKPIs struct {
 	AverageOrderValueToman int64   `json:"average_order_value_toman"`
 	AverageOrderValueUSDT  float64 `json:"average_order_value_usdt"`
 	TotalCustomers         int64   `json:"total_customers"`
+	TotalRegisteredUsers   int64   `json:"total_registered_users"`
+	NewRegisteredUsers     int64   `json:"new_registered_users"`
 	VirtualNumbersRevenue  int64   `json:"virtual_numbers_revenue"`
 	VirtualNumbersCount    int64   `json:"virtual_numbers_count"`
 	StoreProductsRevenue   int64   `json:"store_products_revenue"`
 	StoreProductsCount     int64   `json:"store_products_count"`
+	TotalArticleViews      int64   `json:"total_article_views"`
+	TotalArticleLikes      int64   `json:"total_article_likes"`
+	TotalHelpViews         int64   `json:"total_help_views"`
+	TotalHelpfulVotes      int64   `json:"total_helpful_votes"`
 }
 
 // AdminBITimeSeriesPoint represents one data point on line/bar charts
@@ -134,6 +140,7 @@ type CreateOrUpdateLoyaltyTierRequest struct {
 
 // CustomerLoyaltyProfileResponse represents the user's loyalty status and gamified progress
 type CustomerLoyaltyProfileResponse struct {
+	SystemStatus      string           `json:"system_status"` // "active", "coming_soon", "disabled"
 	CurrentTier       LoyaltyTierDTO   `json:"current_tier"`
 	NextTier          *LoyaltyTierDTO  `json:"next_tier,omitempty"`
 	TotalSpentToman   int64            `json:"total_spent_toman"`

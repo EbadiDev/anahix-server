@@ -44,6 +44,19 @@ func (l *LoyaltyPublicLogic) GetCustomerLoyaltyProfile(customerPhone string) (*t
 	}
 
 	// 2. Fetch loyalty settings
+	systemStatus := "active"
+	var enabledSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "loyalty_enabled").First(&enabledSetting).Error; err == nil {
+		val := strings.ToLower(strings.TrimSpace(enabledSetting.Value))
+		if val == "false" || val == "disabled" {
+			systemStatus = "disabled"
+		} else if val == "coming_soon" {
+			systemStatus = "coming_soon"
+		} else {
+			systemStatus = "active"
+		}
+	}
+
 	period := "monthly_30d"
 	var periodSetting model.SystemSetting
 	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "loyalty_calculation_period").First(&periodSetting).Error; err == nil {
@@ -226,6 +239,7 @@ func (l *LoyaltyPublicLogic) GetCustomerLoyaltyProfile(customerPhone string) (*t
 	}
 
 	return &types.CustomerLoyaltyProfileResponse{
+		SystemStatus:      systemStatus,
 		CurrentTier:       currentDTO,
 		NextTier:          nextDTO,
 		TotalSpentToman:   totalSpentToman,

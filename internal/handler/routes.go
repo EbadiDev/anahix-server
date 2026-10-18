@@ -182,10 +182,11 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		{
 			// Auth
 			adminGroup.POST("/auth/login", admHandler.Login)
+			adminGroup.POST("/auth/exchange", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), admHandler.ExchangeCustomerToken)
 
 			// Protected Admin Routes
 			protected := adminGroup.Group("")
-			protected.Use(middleware.AdminAuthMiddleware(svcCtx.Config.JWT.AccessSecret))
+			protected.Use(middleware.AdminAuthMiddleware(svcCtx.Config.JWT.AccessSecret, svcCtx.DB))
 			{
 				// Products & Inventory
 				protected.GET("/products", admHandler.ListProducts)

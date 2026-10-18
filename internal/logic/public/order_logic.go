@@ -148,7 +148,16 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	priorityScore := 0
 	var loyaltyDiscountToman int64 = 0
 
-	if req.CustomerPhone != "" {
+	var loyaltySetting model.SystemSetting
+	loyaltyActive := true
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "loyalty_enabled").First(&loyaltySetting).Error; err == nil {
+		val := strings.ToLower(strings.TrimSpace(loyaltySetting.Value))
+		if val == "false" || val == "disabled" || val == "coming_soon" {
+			loyaltyActive = false
+		}
+	}
+
+	if loyaltyActive && req.CustomerPhone != "" {
 		var customer model.Customer
 		if err := l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", req.CustomerPhone).First(&customer).Error; err == nil {
 			if customer.Tier != "" {
@@ -157,12 +166,14 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		}
 	}
 
-	// Fetch dynamic tier configuration from database (zero hardcoding)
-	var activeTier model.LoyaltyTier
-	if err := l.svcCtx.DB.WithContext(l.ctx).Where("code = ? AND is_active = ?", customerTierCode, true).First(&activeTier).Error; err == nil {
-		priorityScore = activeTier.QueuePriority
-		if activeTier.DiscountPercent > 0 {
-			loyaltyDiscountToman = int64(float64(subtotalToman) * (activeTier.DiscountPercent / 100.0))
+	if loyaltyActive {
+		// Fetch dynamic tier configuration from database (zero hardcoding)
+		var activeTier model.LoyaltyTier
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("code = ? AND is_active = ?", customerTierCode, true).First(&activeTier).Error; err == nil {
+			priorityScore = activeTier.QueuePriority
+			if activeTier.DiscountPercent > 0 {
+				loyaltyDiscountToman = int64(float64(subtotalToman) * (activeTier.DiscountPercent / 100.0))
+			}
 		}
 	}
 

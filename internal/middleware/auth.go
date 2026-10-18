@@ -6,10 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/pkg/result"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 )
 
 type AdminClaims struct {
@@ -36,8 +38,9 @@ func GenerateAdminToken(secret string, adminID string, username string, role str
 	return token.SignedString([]byte(secret))
 }
 
-// AdminAuthMiddleware validates the Bearer token in the Authorization header
-func AdminAuthMiddleware(secret string) gin.HandlerFunc {
+// AdminAuthMiddleware validates the Bearer token in the Authorization header.
+// It accepts either an AdminUser token OR a Customer token where is_admin = true.
+func AdminAuthMiddleware(secret string, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -52,23 +55,51 @@ func AdminAuthMiddleware(secret string) gin.HandlerFunc {
 		}
 
 		tokenStr := parts[1]
-		claims := &AdminClaims{}
-		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+
+		// 1. Try parsing as AdminClaims
+		adminClaims := &AdminClaims{}
+		adminToken, adminErr := jwt.ParseWithClaims(tokenStr, adminClaims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
 			return []byte(secret), nil
 		})
 
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, result.Error(xerr.Unauthorized, "توکن منقضی شده یا نامعتبر است"))
+		if adminErr == nil && adminToken.Valid && adminClaims.AdminID != "" {
+			c.Set("admin_id", adminClaims.AdminID)
+			c.Set("username", adminClaims.Username)
+			c.Set("role", adminClaims.Role)
+			c.Next()
 			return
 		}
 
-		c.Set("admin_id", claims.AdminID)
-		c.Set("username", claims.Username)
-		c.Set("role", claims.Role)
-		c.Next()
+		// 2. Try parsing as CustomerClaims (if user logged in from storefront and is_admin = true)
+		custClaims := &CustomerClaims{}
+		custToken, custErr := jwt.ParseWithClaims(tokenStr, custClaims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
+			return []byte(secret), nil
+		})
+
+		if custErr == nil && custToken.Valid && custClaims.CustomerID != "" && db != nil {
+			var cust model.Customer
+			if err := db.Where("id = ?", custClaims.CustomerID).First(&cust).Error; err == nil {
+				if cust.IsAdmin && cust.IsActive {
+					username := cust.Email
+					if username == "" {
+						username = cust.Phone
+					}
+					c.Set("admin_id", cust.ID.String())
+					c.Set("username", username)
+					c.Set("role", "super_admin")
+					c.Next()
+					return
+				}
+			}
+		}
+
+		c.AbortWithStatusJSON(http.StatusUnauthorized, result.Error(xerr.Unauthorized, "توکن منقضی شده یا دسترسی مدیریت ندارید"))
 	}
 }
 
