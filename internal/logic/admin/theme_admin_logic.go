@@ -84,6 +84,24 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			res.AuthPasswordEnabled = s.Value != "false" && s.Value != "0"
 		case "auth_otp_required":
 			res.AuthOTPRequired = s.Value == "true" || s.Value == "1"
+		case "checkout_channel_section_enabled":
+			res.CheckoutChannelSectionEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_sms_enabled":
+			res.CheckoutChannelSMSEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_email_enabled":
+			res.CheckoutChannelEmailEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_title":
+			if s.Value != "" {
+				res.CheckoutChannelTitle = s.Value
+			}
+		case "checkout_channel_sms_label":
+			if s.Value != "" {
+				res.CheckoutChannelSMSLabel = s.Value
+			}
+		case "checkout_channel_email_label":
+			if s.Value != "" {
+				res.CheckoutChannelEmailLabel = s.Value
+			}
 		}
 	}
 
@@ -116,6 +134,61 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 		{Category: "auth", Key: "auth_github_enabled", Value: boolToStr(req.AuthGithubEnabled), Type: "bool", Desc: "امکان ورود با حساب گیت‌هاب"},
 		{Category: "auth", Key: "auth_password_enabled", Value: boolToStr(req.AuthPasswordEnabled), Type: "bool", Desc: "امکان ورود با نام کاربری و کلمه عبور"},
 		{Category: "auth", Key: "auth_otp_required", Value: boolToStr(req.AuthOTPRequired), Type: "bool", Desc: "الزام تایید دومرحله‌ای پیامکی OTP"},
+	}
+
+	if req.CheckoutChannelSectionEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_section_enabled",
+			Value:    boolToStr(*req.CheckoutChannelSectionEnabled),
+			Type:     "bool",
+			Desc:     "نمایش بخش انتخاب کانال دریافت فاکتور و لایسنس در تسویه‌حساب",
+		})
+	}
+	if req.CheckoutChannelSMSEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_sms_enabled",
+			Value:    boolToStr(*req.CheckoutChannelSMSEnabled),
+			Type:     "bool",
+			Desc:     "فعال‌سازی کانال پیامک جهت دریافت اطلاعات سفارش",
+		})
+	}
+	if req.CheckoutChannelEmailEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_email_enabled",
+			Value:    boolToStr(*req.CheckoutChannelEmailEnabled),
+			Type:     "bool",
+			Desc:     "فعال‌سازی کانال ایمیل جهت دریافت اطلاعات سفارش",
+		})
+	}
+	if req.CheckoutChannelTitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_title",
+			Value:    req.CheckoutChannelTitle,
+			Type:     "string",
+			Desc:     "عنوان بخش کانال دریافت فاکتور و لایسنس",
+		})
+	}
+	if req.CheckoutChannelSMSLabel != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_sms_label",
+			Value:    req.CheckoutChannelSMSLabel,
+			Type:     "string",
+			Desc:     "عنوان دکمه پیامک به موبایل",
+		})
+	}
+	if req.CheckoutChannelEmailLabel != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "checkout",
+			Key:      "checkout_channel_email_label",
+			Value:    req.CheckoutChannelEmailLabel,
+			Type:     "string",
+			Desc:     "عنوان دکمه ارسال به ایمیل",
+		})
 	}
 
 	return l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {

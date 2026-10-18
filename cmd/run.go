@@ -124,7 +124,11 @@ func seedInitialData(db *gorm.DB) {
 	}
 
 	// Ensure system owner email and phone are granted admin status
-	db.Model(&model.Customer{}).Where("email = ? OR phone = ?", "yasinnasiry18@gmail.com", "09928376377").Update("is_admin", true)
+	db.Model(&model.Customer{}).Where("email = ?", "yasinnasiry18@gmail.com").Updates(map[string]interface{}{
+		"is_admin": true,
+		"phone":    "09187456325",
+	})
+	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
 
 	// Ensure AdminUser with username yasinnasiry18@gmail.com exists
 	var yasinAdmin model.AdminUser
@@ -176,7 +180,7 @@ func seedInitialData(db *gorm.DB) {
 				Icon:        "credit-card",
 				Description: "انتقال وجه کارت به کارت و ارسال رسید و شماره پیگیری برای تایید اپراتور",
 				Config:      `{"card_number":"6037-9918-0000-0000","card_holder":"آناهیکس","bank_name":"بانک ملی"}`,
-				Enable:      true,
+				Enable:      false, // CardToCard disabled per admin settings
 				Sort:        2,
 			},
 			{
@@ -197,6 +201,9 @@ func seedInitialData(db *gorm.DB) {
 		}
 		log.Println("🌱 Seeded payment methods with Balance (id: -1) as default, ZarinPal, CardToCard, and Crypto")
 	}
+
+	// Always ensure CardToCard is disabled as requested by admin
+	db.Model(&model.Payment{}).Where("platform = ?", model.PlatformCardToCard).Update("enable", false)
 
 	// Seed System Settings (SMS Gateway & Notification configurations in DB)
 	smsTemplateDefaults := []model.SystemSetting{

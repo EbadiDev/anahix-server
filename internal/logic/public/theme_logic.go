@@ -23,24 +23,30 @@ func NewThemeLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ThemeLogic 
 func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 	var settings []model.SystemSetting
 	if err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("category IN ?", []string{"theme", "auth"}).
+		Where("category IN ?", []string{"theme", "auth", "checkout"}).
 		Find(&settings).Error; err != nil {
 		return nil, err
 	}
 
 	res := &types.ThemeSettingsResponse{
-		DefaultTheme:        "graphite",
-		EventName:           "عادی",
-		EventActive:         false,
-		PrimaryColor:        "#2563eb",
-		AccentColor:         "#3b82f6",
-		HeaderAnnouncement:  "تمامی سرویس‌ها و شماره‌های مجازی فعال و تحویل آنی برقرار است",
-		EventEffect:         "none",
-		EventIcon:           "sparkles",
-		AuthGoogleEnabled:   true,
-		AuthGithubEnabled:   true,
-		AuthPasswordEnabled: true,
-		AuthOTPRequired:     false,
+		DefaultTheme:                  "graphite",
+		EventName:                     "عادی",
+		EventActive:                   false,
+		PrimaryColor:                  "#2563eb",
+		AccentColor:                   "#3b82f6",
+		HeaderAnnouncement:            "تمامی سرویس‌ها و شماره‌های مجازی فعال و تحویل آنی برقرار است",
+		EventEffect:                   "none",
+		EventIcon:                     "sparkles",
+		AuthGoogleEnabled:             true,
+		AuthGithubEnabled:             true,
+		AuthPasswordEnabled:           true,
+		AuthOTPRequired:               false,
+		CheckoutChannelSectionEnabled: true,
+		CheckoutChannelSMSEnabled:     true,
+		CheckoutChannelEmailEnabled:   true,
+		CheckoutChannelTitle:          "دریافت فاکتور و لایسنس سفارش:",
+		CheckoutChannelSMSLabel:       "پیامک به موبایل",
+		CheckoutChannelEmailLabel:     "ارسال به ایمیل",
 	}
 
 	for _, s := range settings {
@@ -83,6 +89,24 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 			res.AuthPasswordEnabled = s.Value != "false" && s.Value != "0"
 		case "auth_otp_required":
 			res.AuthOTPRequired = s.Value == "true" || s.Value == "1"
+		case "checkout_channel_section_enabled":
+			res.CheckoutChannelSectionEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_sms_enabled":
+			res.CheckoutChannelSMSEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_email_enabled":
+			res.CheckoutChannelEmailEnabled = s.Value != "false" && s.Value != "0"
+		case "checkout_channel_title":
+			if s.Value != "" {
+				res.CheckoutChannelTitle = s.Value
+			}
+		case "checkout_channel_sms_label":
+			if s.Value != "" {
+				res.CheckoutChannelSMSLabel = s.Value
+			}
+		case "checkout_channel_email_label":
+			if s.Value != "" {
+				res.CheckoutChannelEmailLabel = s.Value
+			}
 		}
 	}
 

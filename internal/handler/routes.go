@@ -94,6 +94,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		// Coupons
 		coupons := api.Group("/coupons")
 		{
+			coupons.GET("", pubHandler.ListPublicCoupons)
 			coupons.POST("/validate", pubHandler.ValidateCoupon)
 		}
 

@@ -482,6 +482,9 @@ type CustomerProfileResponse struct {
 	ReferralBalanceToman int64     `json:"referral_balance_toman"`
 	IsActive             bool      `json:"is_active"`
 	IsAdmin              bool      `json:"is_admin"`
+	EmailVerified        bool      `json:"email_verified"`
+	PhoneVerified        bool      `json:"phone_verified"`
+	AuthProvider         string    `json:"auth_provider"`
 
 	// Corporate / Legal entity profile
 	IsCorporate    bool   `json:"is_corporate"`
@@ -503,6 +506,8 @@ type UpdateCustomerProfileRequest struct {
 	Email     string `json:"email,omitempty"`
 	Phone     string `json:"phone,omitempty"`
 	AvatarURL string `json:"avatar_url,omitempty"`
+	EmailVerified *bool  `json:"email_verified,omitempty"`
+	PhoneVerified *bool  `json:"phone_verified,omitempty"`
 
 	// Corporate / Legal entity update
 	IsCorporate    *bool  `json:"is_corporate,omitempty"`
@@ -578,6 +583,13 @@ type ValidateCouponResponse struct {
 	DiscountToman    int64  `json:"discount_toman"`
 	FinalAmountToman int64  `json:"final_amount_toman"`
 	Message          string `json:"message"`
+}
+
+type PublicPromotionCoupon struct {
+	Code          string `json:"code"`
+	Label         string `json:"label"`
+	DiscountType  string `json:"discount_type"`
+	DiscountValue int64  `json:"discount_value"`
 }
 
 type CouponListItem struct {

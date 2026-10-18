@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -117,4 +118,39 @@ func (l *CouponLogic) ValidateCoupon(req *types.ValidateCouponRequest) (*types.V
 		FinalAmountToman: finalAmount,
 		Message:          "کد تخفیف با موفقیت اعمال شد",
 	}, nil
+}
+
+// ListPublicPromotions returns active, non-expired coupons to show as ready chips in storefront
+func (l *CouponLogic) ListPublicPromotions() ([]types.PublicPromotionCoupon, error) {
+	var coupons []model.Coupon
+	now := time.Now()
+	err := l.svcCtx.DB.WithContext(l.ctx).
+		Where("is_active = ? AND (expires_at IS NULL OR expires_at > ?)", true, now).
+		Order("discount_value desc").
+		Find(&coupons).Error
+	if err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	result := make([]types.PublicPromotionCoupon, 0, len(coupons))
+	for _, c := range coupons {
+		label := ""
+		if c.DiscountType == model.DiscountTypePercentage {
+			label = fmt.Sprintf("%d%% تخفیف", c.DiscountValue)
+		} else {
+			if c.DiscountValue >= 1000 {
+				label = fmt.Sprintf("%d هزار تومان تخفیف", c.DiscountValue/1000)
+			} else {
+				label = fmt.Sprintf("%d تومان تخفیف", c.DiscountValue)
+			}
+		}
+		result = append(result, types.PublicPromotionCoupon{
+			Code:          c.Code,
+			Label:         label,
+			DiscountType:  string(c.DiscountType),
+			DiscountValue: c.DiscountValue,
+		})
+	}
+
+	return result, nil
 }

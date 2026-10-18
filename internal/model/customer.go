@@ -19,6 +19,9 @@ type Customer struct {
 	PasswordHash string         `gorm:"size:255" json:"-"`
 	GoogleID     string         `gorm:"size:120;index" json:"google_id,omitempty"`
 	GithubID     string         `gorm:"size:120;index" json:"github_id,omitempty"`
+	EmailVerified        bool           `gorm:"default:false;index" json:"email_verified"`
+	PhoneVerified        bool           `gorm:"default:false;index" json:"phone_verified"`
+	AuthProvider         string         `gorm:"size:40;default:'manual'" json:"auth_provider"`
 	BalanceToman         int64          `gorm:"not null;default:0" json:"balance_toman"`
 	ReferralCode         string         `gorm:"size:32;uniqueIndex" json:"referral_code"`
 	ReferralBalanceToman int64          `gorm:"not null;default:0" json:"referral_balance_toman"`

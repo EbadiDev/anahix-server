@@ -255,6 +255,22 @@ func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse
 		displayPhone = ""
 	}
 
+	isPhoneReal := displayPhone != ""
+	emailVerified := customer.EmailVerified || customer.GoogleID != "" || customer.GithubID != ""
+	phoneVerified := customer.PhoneVerified || isPhoneReal
+	authProvider := customer.AuthProvider
+	if authProvider == "" {
+		if customer.GoogleID != "" {
+			authProvider = "google"
+		} else if customer.GithubID != "" {
+			authProvider = "github"
+		} else if isPhoneReal {
+			authProvider = "phone"
+		} else {
+			authProvider = "manual"
+		}
+	}
+
 	return types.CustomerProfileResponse{
 		ID:                   customer.ID.String(),
 		Phone:                displayPhone,
@@ -270,6 +286,9 @@ func mapCustomerResponse(customer *model.Customer) types.CustomerProfileResponse
 		ReferralBalanceToman: customer.ReferralBalanceToman,
 		IsActive:             customer.IsActive,
 		IsAdmin:              customer.IsAdmin,
+		EmailVerified:        emailVerified,
+		PhoneVerified:        phoneVerified,
+		AuthProvider:         authProvider,
 		IsCorporate:          customer.IsCorporate,
 		CompanyName:          customer.CompanyName,
 		NationalID:           customer.NationalID,
@@ -340,6 +359,14 @@ func (l *CustomerAuthLogic) UpdateProfile(customerIDStr string, req *types.Updat
 		trimmed := strings.TrimSpace(req.Email)
 		updates["email"] = trimmed
 		customer.Email = trimmed
+	}
+	if req.EmailVerified != nil {
+		updates["email_verified"] = *req.EmailVerified
+		customer.EmailVerified = *req.EmailVerified
+	}
+	if req.PhoneVerified != nil {
+		updates["phone_verified"] = *req.PhoneVerified
+		customer.PhoneVerified = *req.PhoneVerified
 	}
 	if req.Phone != "" {
 		cleaned := smsir.NormalizeMobile(req.Phone)
@@ -491,12 +518,15 @@ func (l *CustomerAuthLogic) RegisterWithPassword(req *types.RegisterWithPassword
 
 	now := time.Now()
 	customer := model.Customer{
-		Phone:        cleanPhone,
-		FullName:     fullName,
-		Email:        email,
-		BalanceToman: 0,
-		IsActive:     true,
-		LastLoginAt:  &now,
+		Phone:         cleanPhone,
+		FullName:      fullName,
+		Email:         email,
+		EmailVerified: false, // Manual email registrations require OTP verification
+		PhoneVerified: cleanPhone != "" && !isSyntheticPhone(cleanPhone),
+		AuthProvider:  "manual",
+		BalanceToman:  0,
+		IsActive:      true,
+		LastLoginAt:   &now,
 	}
 
 	if err := customer.SetPassword(pwd); err != nil {
@@ -551,13 +581,15 @@ func (l *CustomerAuthLogic) OAuthSimulate(req *types.OAuthSimulateRequest) (*typ
 			isNew = true
 			syntheticPhone := fmt.Sprintf("098%s", uuid.New().String()[:8])
 			customer = model.Customer{
-				Phone:        syntheticPhone,
-				FullName:     name,
-				Email:        email,
-				AvatarURL:    avatar,
-				BalanceToman: 0,
-				IsActive:     true,
-				LastLoginAt:  &now,
+				Phone:         syntheticPhone,
+				FullName:      name,
+				Email:         email,
+				EmailVerified: true, // Google / GitHub accounts are pre-verified
+				AuthProvider:  provider,
+				AvatarURL:     avatar,
+				BalanceToman:  0,
+				IsActive:      true,
+				LastLoginAt:   &now,
 			}
 			if provider == "google" {
 				customer.GoogleID = providerID

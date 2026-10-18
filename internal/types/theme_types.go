@@ -13,6 +13,12 @@ type ThemeSettingsResponse struct {
 	AuthGithubEnabled   bool   `json:"auth_github_enabled"`   // toggle github oauth
 	AuthPasswordEnabled bool   `json:"auth_password_enabled"` // toggle password login
 	AuthOTPRequired     bool   `json:"auth_otp_required"`     // require mobile otp
+	CheckoutChannelSectionEnabled bool   `json:"checkout_channel_section_enabled"` // show invoice/tracking channel section
+	CheckoutChannelSMSEnabled     bool   `json:"checkout_channel_sms_enabled"`     // enable sms destination channel
+	CheckoutChannelEmailEnabled   bool   `json:"checkout_channel_email_enabled"`   // enable email destination channel
+	CheckoutChannelTitle          string `json:"checkout_channel_title"`           // custom section title
+	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label"`       // custom sms button label
+	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label"`     // custom email button label
 }
 
 type UpdateThemeSettingsRequest struct {
@@ -28,6 +34,12 @@ type UpdateThemeSettingsRequest struct {
 	AuthGithubEnabled   bool   `json:"auth_github_enabled"`
 	AuthPasswordEnabled bool   `json:"auth_password_enabled"`
 	AuthOTPRequired     bool   `json:"auth_otp_required"`
+	CheckoutChannelSectionEnabled *bool  `json:"checkout_channel_section_enabled,omitempty"`
+	CheckoutChannelSMSEnabled     *bool  `json:"checkout_channel_sms_enabled,omitempty"`
+	CheckoutChannelEmailEnabled   *bool  `json:"checkout_channel_email_enabled,omitempty"`
+	CheckoutChannelTitle          string `json:"checkout_channel_title,omitempty"`
+	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label,omitempty"`
+	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label,omitempty"`
 }
 
 type PasswordLoginRequest struct {

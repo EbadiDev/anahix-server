@@ -42,6 +42,17 @@ func (l *InvoiceLogic) GetOrderInvoice(orderIDOrNo string, token string, current
 
 	if err := query.First(&order).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Check if it's a virtual number order
+			var vnOrder model.VirtualNumberOrder
+			vnQuery := l.svcCtx.DB.WithContext(l.ctx)
+			if orderUUID, err := uuid.Parse(orderIDOrNo); err == nil {
+				vnQuery = vnQuery.Where("id = ?", orderUUID)
+			} else {
+				vnQuery = vnQuery.Where("order_no = ?", orderIDOrNo)
+			}
+			if vnErr := vnQuery.First(&vnOrder).Error; vnErr == nil {
+				return l.buildVirtualNumberInvoice(&vnOrder)
+			}
 			return nil, xerr.NewErrCode(xerr.OrderNotFound)
 		}
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
@@ -328,4 +339,91 @@ func (l *InvoiceLogic) UpdateOrderBuyerInvoice(orderIDOrNo string, token string,
 	}
 
 	return nil
+}
+
+func (l *InvoiceLogic) buildVirtualNumberInvoice(vnOrder *model.VirtualNumberOrder) (*types.OfficialInvoiceResponse, error) {
+	seller := types.SellerBillingInfo{
+		CompanyName: "فروشگاه هوش مصنوعی آناهیکس",
+		BrandFA:     "فروشگاه هوش مصنوعی آناهیکس",
+		Phone:       "021-88776655",
+		Email:       "support@anahix.com",
+		Website:     "https://anahix.com",
+	}
+
+	var sysSettings []model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ?", "billing").Find(&sysSettings).Error; err == nil {
+		for _, s := range sysSettings {
+			val := strings.TrimSpace(s.Value)
+			switch s.Key {
+			case "billing_seller_company_name":
+				if val != "" && !strings.Contains(val, "نوآوران داده‌پرداز") {
+					seller.CompanyName = val
+				}
+			case "billing_seller_brand_fa":
+				if val != "" {
+					seller.BrandFA = val
+				}
+			}
+		}
+	}
+
+	statusFA := "در انتظار پیامک"
+	if vnOrder.Status == model.VNumStatusReceived || vnOrder.Status == model.VNumStatusFinished {
+		statusFA = "تکمیل شده و تایید پرداخت"
+	} else if vnOrder.Status == model.VNumStatusCanceled || vnOrder.Status == model.VNumStatusTimeout {
+		statusFA = "لغو و استرداد وجه"
+	}
+
+	buyerPhone := vnOrder.CustomerPhone
+	if len(buyerPhone) >= 7 {
+		buyerPhone = buyerPhone[:4] + "***" + buyerPhone[len(buyerPhone)-4:]
+	}
+
+	buyer := types.BuyerBillingInfo{
+		FullName: "کاربر گرامی",
+		Phone:    buyerPhone,
+	}
+
+	title := fmt.Sprintf("شماره مجازی %s (%s)", vnOrder.ServiceNameFA, vnOrder.CountryNameFA)
+	item := types.InvoiceItemDTO{
+		RowIndex:                1,
+		ProductID:               vnOrder.ID.String(),
+		ProductTitle:            title,
+		ProductSlug:             vnOrder.Service,
+		DeliveryType:            "تحویل آنلاین و دریافت پیامک",
+		Quantity:                1,
+		UnitPriceToman:          vnOrder.PriceToman,
+		SubtotalToman:           vnOrder.PriceToman,
+		DiscountToman:           0,
+		TotalAfterDiscountToman: vnOrder.PriceToman,
+		TaxRatePercent:          0,
+		TaxToman:                0,
+		FinalAmountToman:        vnOrder.PriceToman,
+	}
+
+	return &types.OfficialInvoiceResponse{
+		InvoiceNumber:            fmt.Sprintf("INV-%s", vnOrder.OrderNo),
+		OrderNumber:              vnOrder.OrderNo,
+		OrderID:                  vnOrder.ID.String(),
+		InvoiceType:              "official",
+		InvoiceTypeFA:            "رسید دیجیتال و صورتحساب خرید",
+		IssueDate:                vnOrder.CreatedAt,
+		IssueDateJalali:          jalali.FormatDateTimeJalali(vnOrder.CreatedAt),
+		PaymentMethod:            "balance",
+		PaymentMethodFA:          "کیف پول حساب کاربری آناهیکس",
+		PaymentStatus:            string(vnOrder.Status),
+		PaymentStatusFA:          statusFA,
+		Seller:                   seller,
+		Buyer:                    buyer,
+		Items:                    []types.InvoiceItemDTO{item},
+		SubtotalToman:            vnOrder.PriceToman,
+		TotalDiscountToman:       0,
+		AmountAfterDiscountToman: vnOrder.PriceToman,
+		TaxRatePercent:           0,
+		TotalTaxToman:            0,
+		FinalTotalToman:          vnOrder.PriceToman,
+		FinalTotalTomanWords:     numtofa.AmountToPersianWords(vnOrder.PriceToman) + " تومان",
+		FinalTotalRials:          vnOrder.PriceToman * 10,
+		Notes:                    "از خرید شماره مجازی در آناهیکس سپاسگزاریم! پشتیبانی اختصاصی در تلگرام پاسخگوی شماست.",
+	}, nil
 }

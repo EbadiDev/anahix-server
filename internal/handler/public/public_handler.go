@@ -108,6 +108,12 @@ func (h *PublicHandler) ValidateCoupon(c *gin.Context) {
 	result.HttpResult(c, resp, err)
 }
 
+func (h *PublicHandler) ListPublicCoupons(c *gin.Context) {
+	l := public.NewCouponLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListPublicPromotions()
+	result.HttpResult(c, resp, err)
+}
+
 func (h *PublicHandler) GetReferralStats(c *gin.Context) {
 	phone := c.GetString("phone")
 	if phone == "" {
