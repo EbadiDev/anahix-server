@@ -12,6 +12,8 @@ type BannerItemResponse struct {
 	ButtonText string `json:"button_text"`
 	SortOrder  int    `json:"sort_order"`
 	IsActive   bool   `json:"is_active"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type CreateBannerRequest struct {

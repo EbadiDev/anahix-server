@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -69,6 +70,19 @@ func seedBannersAndThemeData(db *gorm.DB) {
 		log.Println("🌱 Seeded initial promotional banners (table: 'banners')")
 	}
 
+	// Ensure all banners have valid timestamps
+	var allBanners []model.Banner
+	db.Find(&allBanners)
+	nowTime := time.Now()
+	for _, b := range allBanners {
+		if b.CreatedAt.IsZero() {
+			db.Model(&model.Banner{}).Where("id = ?", b.ID).Updates(map[string]interface{}{
+				"created_at": nowTime.Add(-12 * time.Hour),
+				"updated_at": nowTime,
+			})
+		}
+	}
+
 	// 2. Seed Default Theme Settings if not present
 	var themeCount int64
 	db.Model(&model.SystemSetting{}).Where("category IN ?", []string{"theme", "auth"}).Count(&themeCount)
@@ -96,53 +110,111 @@ func seedBannersAndThemeData(db *gorm.DB) {
 	// 3. Update sample products with Flash Sale and high-res Images
 	var products []model.Product
 	db.Find(&products)
-	futureDate := time.Now().Add(48 * time.Hour)
+	futureDate := time.Now().Add(72 * time.Hour)
 
 	for _, p := range products {
 		updates := map[string]interface{}{}
-		if p.ImageURL == "" {
-			switch p.Slug {
-			case "gemini-advanced-18m":
-				updates["image_url"] = "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop"
-				updates["is_flash_sale"] = true
-				updates["flash_sale_price_toman"] = int64(float64(p.PriceToman) * 0.85)
-				updates["flash_sale_end_at"] = futureDate
-				updates["flash_sale_stock"] = 50
-				updates["flash_sale_sold"] = 38
-				updates["is_best_seller"] = true
-				updates["is_featured"] = true
-				updates["rating_average"] = 4.95
-				updates["sales_count"] = 1240
-				updates["badges_json"] = `["تحویل فوری", "۱۸ ماهه تضمینی", "۲ ترابایت فضای ابری"]`
-			case "chatgpt-plus":
-				updates["image_url"] = "https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=800&auto=format&fit=crop"
-				updates["is_flash_sale"] = true
-				updates["flash_sale_price_toman"] = int64(float64(p.PriceToman) * 0.90)
-				updates["flash_sale_end_at"] = futureDate
-				updates["flash_sale_stock"] = 40
-				updates["flash_sale_sold"] = 29
-				updates["is_best_seller"] = true
-				updates["is_featured"] = true
-				updates["rating_average"] = 4.98
-				updates["sales_count"] = 2410
-				updates["badges_json"] = `["اکانت اختصاصی", "پشتیبانی GPT-4o و o3-mini", "پروتکل Zeroize"]`
-			case "claude-pro":
-				updates["image_url"] = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop"
-				updates["is_best_seller"] = true
-				updates["is_featured"] = true
-				updates["rating_average"] = 4.92
-				updates["sales_count"] = 890
-				updates["badges_json"] = `["مدل Sonnet 3.7", "ظرفیت ۲۰۰ هزار توکن", "ضمانت عدم قطعی"]`
-			default:
+		slug := strings.ToLower(p.Slug)
+
+		if strings.Contains(slug, "gemini") {
+			updates["image_url"] = "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop"
+			updates["is_flash_sale"] = true
+			updates["flash_sale_price_toman"] = 990000 // ~33% off 1,480,000
+			updates["flash_sale_end_at"] = futureDate
+			updates["flash_sale_stock"] = 60
+			updates["flash_sale_sold"] = 41
+			updates["is_best_seller"] = true
+			updates["is_featured"] = true
+			updates["rating_average"] = 4.95
+			updates["sales_count"] = 1240
+			updates["badges_json"] = `["۳۳٪ تخفیف شگفت‌انگیز", "۲ ترابایت فضای ابری", "۱۸ ماهه قانونی"]`
+		} else if strings.Contains(slug, "chatgpt") {
+			updates["image_url"] = "https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=800&auto=format&fit=crop"
+			updates["is_flash_sale"] = true
+			updates["flash_sale_price_toman"] = 1560000 // 20% off 1,950,000
+			updates["flash_sale_end_at"] = time.Now().Add(96 * time.Hour)
+			updates["flash_sale_stock"] = 50
+			updates["flash_sale_sold"] = 34
+			updates["is_best_seller"] = true
+			updates["is_featured"] = true
+			updates["rating_average"] = 4.98
+			updates["sales_count"] = 2410
+			updates["badges_json"] = `["۲۰٪ تخفیف ویژه", "ارتقای قانونی ایمیل شخصی", "پروتکل امنیتی Zeroize"]`
+		} else if strings.Contains(slug, "claude") {
+			updates["image_url"] = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop"
+			updates["is_flash_sale"] = true
+			updates["flash_sale_price_toman"] = 1417000 // 25% off 1,890,000
+			updates["flash_sale_end_at"] = time.Now().Add(48 * time.Hour)
+			updates["flash_sale_stock"] = 40
+			updates["flash_sale_sold"] = 28
+			updates["is_best_seller"] = true
+			updates["is_featured"] = true
+			updates["rating_average"] = 4.92
+			updates["sales_count"] = 890
+			updates["badges_json"] = `["۲۵٪ تخفیف زمان‌دار", "مدل Sonnet 3.7", "اکانت آماده اختصاصی"]`
+		} else if strings.Contains(slug, "cursor") {
+			updates["image_url"] = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=800&auto=format&fit=crop"
+			updates["is_flash_sale"] = true
+			updates["flash_sale_price_toman"] = 1225000 // 30% off 1,750,000
+			updates["flash_sale_end_at"] = time.Now().Add(120 * time.Hour)
+			updates["flash_sale_stock"] = 45
+			updates["flash_sale_sold"] = 31
+			updates["is_best_seller"] = true
+			updates["is_featured"] = true
+			updates["rating_average"] = 4.94
+			updates["sales_count"] = 680
+			updates["badges_json"] = `["۳۰٪ تخفیف ویژه برنامه‌نویسان", "دستیار کدنویسی AI", "تحویل فوری"]`
+		} else {
+			if p.ImageURL == "" {
 				updates["image_url"] = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=800&auto=format&fit=crop"
-				updates["rating_average"] = 4.88
-				updates["sales_count"] = 420
-				updates["badges_json"] = `["تحویل قانونی", "ضمانت بازگشت وجه"]`
 			}
+			updates["rating_average"] = 4.88
+			updates["sales_count"] = 420
+			updates["badges_json"] = `["تحویل قانونی", "ضمانت بازگشت وجه"]`
 		}
 
 		if len(updates) > 0 {
 			db.Model(&model.Product{}).Where("id = ?", p.ID).Updates(updates)
 		}
+	}
+
+	// 4. Ensure Midjourney test offer product exists
+	var midjourneyCount int64
+	db.Model(&model.Product{}).Where("slug = ?", "midjourney-pro-1m").Count(&midjourneyCount)
+	if midjourneyCount == 0 {
+		endAt := time.Now().Add(72 * time.Hour)
+		mj := model.Product{
+			ID:                  uuid.New(),
+			Title:               "Midjourney Pro AI 1 Month Subscription",
+			TitleFA:             "اشتراک ۱ ماهه هوش مصنوعی میدجورنی پرو (Midjourney Pro)",
+			Slug:                "midjourney-pro-1m",
+			Description:         "دسترسی اختصاصی و نامحدود به سرورهای تولید تصویر فوق پیشرفته Midjourney v6 با حالت مخفی (Stealth Mode) و تولید موازی.",
+			Category:            model.CategoryAIAccount,
+			DeliveryType:        model.DeliveryInstant,
+			SLAMinMinutes:       1,
+			SLAMaxMinutes:       5,
+			SLADisplayText:      "تحویل ۰ ثانیه‌ای (آنی)",
+			OperatingHours:      "۲۴ ساعته (تحویل خودکار)",
+			BaseCostUSD:         25,
+			PriceToman:          2400000,
+			IsActive:            true,
+			ImageURL:            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop",
+			IsFlashSale:         true,
+			FlashSalePriceToman: 1680000, // 30% discount
+			FlashSaleEndAt:      &endAt,
+			FlashSaleStock:      30,
+			FlashSaleSold:       19,
+			IsBestSeller:        true,
+			IsFeatured:          true,
+			RatingAverage:       4.96,
+			SalesCount:          510,
+			BadgesJSON:          `["۳۰٪ تخفیف جشنواره", "تولید نامحدود تصویر", "Stealth Mode"]`,
+			GroupTag:            "midjourney",
+			GroupTitleFA:        "میدجورنی (Midjourney AI)",
+			CreatedAt:           nowTime,
+			UpdatedAt:           nowTime,
+		}
+		db.Create(&mj)
+		log.Println("🌱 Seeded Midjourney Pro test offer product (table: 'products')")
 	}
 }

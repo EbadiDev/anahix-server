@@ -26,8 +26,11 @@ type ProductListItem struct {
 	ImageURL            string   `json:"image_url,omitempty"`
 	IsFlashSale         bool     `json:"is_flash_sale"`
 	FlashSalePriceToman int64    `json:"flash_sale_price_toman"`
+	FlashSaleEndAt      *string  `json:"flash_sale_end_at,omitempty"`
 	FlashSaleStock      int      `json:"flash_sale_stock"`
 	FlashSaleSold       int      `json:"flash_sale_sold"`
+	OriginalPriceToman  int64    `json:"original_price_toman,omitempty"`
+	DiscountPercent     int      `json:"discount_percent,omitempty"`
 	IsBestSeller        bool     `json:"is_best_seller"`
 	IsFeatured          bool     `json:"is_featured"`
 	RatingAverage       float64  `json:"rating_average"`

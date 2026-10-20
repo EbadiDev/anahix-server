@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -33,6 +34,15 @@ func (l *BannerLogic) ListPublicBanners(position string) ([]types.BannerItemResp
 
 	resp := make([]types.BannerItemResponse, len(banners))
 	for i, b := range banners {
+		createdAt := b.CreatedAt.Format(time.RFC3339)
+		if b.CreatedAt.IsZero() {
+			createdAt = time.Now().Format(time.RFC3339)
+		}
+		updatedAt := b.UpdatedAt.Format(time.RFC3339)
+		if b.UpdatedAt.IsZero() {
+			updatedAt = createdAt
+		}
+
 		resp[i] = types.BannerItemResponse{
 			ID:         b.ID.String(),
 			Title:      b.Title,
@@ -45,6 +55,8 @@ func (l *BannerLogic) ListPublicBanners(position string) ([]types.BannerItemResp
 			ButtonText: b.ButtonText,
 			SortOrder:  b.SortOrder,
 			IsActive:   b.IsActive,
+			CreatedAt:  createdAt,
+			UpdatedAt:  updatedAt,
 		}
 	}
 

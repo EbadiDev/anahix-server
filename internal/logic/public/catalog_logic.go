@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -49,6 +50,18 @@ func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
 			_ = json.Unmarshal([]byte(p.FeaturesJSON), &features)
 		}
 
+		var flashSaleEndStr *string
+		if p.FlashSaleEndAt != nil {
+			s := p.FlashSaleEndAt.Format(time.RFC3339)
+			flashSaleEndStr = &s
+		}
+		var discountPercent int = 0
+		var origPrice int64 = p.PriceToman
+		if p.IsFlashSale && p.FlashSalePriceToman > 0 && p.PriceToman > p.FlashSalePriceToman {
+			discountPercent = int(float64(p.PriceToman-p.FlashSalePriceToman) / float64(p.PriceToman) * 100)
+			origPrice = p.PriceToman
+		}
+
 		result[i] = types.ProductListItem{
 			ID:                  p.ID.String(),
 			Title:               p.Title,
@@ -67,8 +80,11 @@ func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
 			ImageURL:            p.ImageURL,
 			IsFlashSale:         p.IsFlashSale,
 			FlashSalePriceToman: p.FlashSalePriceToman,
+			FlashSaleEndAt:      flashSaleEndStr,
 			FlashSaleStock:      p.FlashSaleStock,
 			FlashSaleSold:       p.FlashSaleSold,
+			OriginalPriceToman:  origPrice,
+			DiscountPercent:     discountPercent,
 			IsBestSeller:        p.IsBestSeller,
 			IsFeatured:          p.IsFeatured,
 			RatingAverage:       p.RatingAverage,
@@ -174,7 +190,20 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 		}
 	}
 
+	var detailFlashSaleEnd *string
+	if p.FlashSaleEndAt != nil {
+		s := p.FlashSaleEndAt.Format(time.RFC3339)
+		detailFlashSaleEnd = &s
+	}
+	var detailDiscountPercent int = 0
+	var detailOrigPrice int64 = p.PriceToman
+	if p.IsFlashSale && p.FlashSalePriceToman > 0 && p.PriceToman > p.FlashSalePriceToman {
+		detailDiscountPercent = int(float64(p.PriceToman-p.FlashSalePriceToman) / float64(p.PriceToman) * 100)
+		detailOrigPrice = p.PriceToman
+	}
+
 	detail := &types.ProductDetail{
+
 		ProductListItem: types.ProductListItem{
 			ID:                  p.ID.String(),
 			Title:               p.Title,
@@ -193,8 +222,11 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 			ImageURL:            p.ImageURL,
 			IsFlashSale:         p.IsFlashSale,
 			FlashSalePriceToman: p.FlashSalePriceToman,
+			FlashSaleEndAt:      detailFlashSaleEnd,
 			FlashSaleStock:      p.FlashSaleStock,
 			FlashSaleSold:       p.FlashSaleSold,
+			OriginalPriceToman:  detailOrigPrice,
+			DiscountPercent:     detailDiscountPercent,
 			IsBestSeller:        p.IsBestSeller,
 			IsFeatured:          p.IsFeatured,
 			RatingAverage:       p.RatingAverage,

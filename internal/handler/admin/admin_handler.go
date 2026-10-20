@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
@@ -283,6 +284,10 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		IsFlashSale      *bool                  `json:"is_flash_sale"`
 		FlashSalePriceToman *int64              `json:"flash_sale_price_toman"`
 		FlashSaleStock   *int                   `json:"flash_sale_stock"`
+		FlashSaleSold    *int                   `json:"flash_sale_sold"`
+		FlashSaleEndAt   *string                `json:"flash_sale_end_at"`
+		BadgesJSON       *string                `json:"badges_json"`
+		RatingAverage    *float64               `json:"rating_average"`
 		IsBestSeller     *bool                  `json:"is_best_seller"`
 		IsFeatured       *bool                  `json:"is_featured"`
 		PlansJSON        *string                `json:"plans_json"`
@@ -370,6 +375,28 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 	}
 	if req.FlashSaleStock != nil {
 		existing.FlashSaleStock = *req.FlashSaleStock
+	}
+	if req.FlashSaleSold != nil {
+		existing.FlashSaleSold = *req.FlashSaleSold
+	}
+	if req.FlashSaleEndAt != nil {
+		if *req.FlashSaleEndAt != "" {
+			if t, err := time.Parse(time.RFC3339, *req.FlashSaleEndAt); err == nil {
+				existing.FlashSaleEndAt = &t
+			} else if t, err := time.Parse("2006-01-02T15:04", *req.FlashSaleEndAt); err == nil {
+				existing.FlashSaleEndAt = &t
+			} else if t, err := time.Parse("2006-01-02", *req.FlashSaleEndAt); err == nil {
+				existing.FlashSaleEndAt = &t
+			}
+		} else {
+			existing.FlashSaleEndAt = nil
+		}
+	}
+	if req.BadgesJSON != nil {
+		existing.BadgesJSON = *req.BadgesJSON
+	}
+	if req.RatingAverage != nil {
+		existing.RatingAverage = *req.RatingAverage
 	}
 	if req.IsBestSeller != nil {
 		existing.IsBestSeller = *req.IsBestSeller

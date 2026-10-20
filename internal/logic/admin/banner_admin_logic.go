@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
@@ -30,6 +31,15 @@ func (l *BannerAdminLogic) ListBanners() ([]types.BannerItemResponse, error) {
 
 	resp := make([]types.BannerItemResponse, len(banners))
 	for i, b := range banners {
+		createdAt := b.CreatedAt.Format(time.RFC3339)
+		if b.CreatedAt.IsZero() {
+			createdAt = time.Now().Format(time.RFC3339)
+		}
+		updatedAt := b.UpdatedAt.Format(time.RFC3339)
+		if b.UpdatedAt.IsZero() {
+			updatedAt = createdAt
+		}
+
 		resp[i] = types.BannerItemResponse{
 			ID:         b.ID.String(),
 			Title:      b.Title,
@@ -42,6 +52,8 @@ func (l *BannerAdminLogic) ListBanners() ([]types.BannerItemResponse, error) {
 			ButtonText: b.ButtonText,
 			SortOrder:  b.SortOrder,
 			IsActive:   b.IsActive,
+			CreatedAt:  createdAt,
+			UpdatedAt:  updatedAt,
 		}
 	}
 	return resp, nil
@@ -86,6 +98,15 @@ func (l *BannerAdminLogic) CreateBanner(req *types.CreateBannerRequest) (*types.
 		return nil, err
 	}
 
+	cAt := banner.CreatedAt.Format(time.RFC3339)
+	if banner.CreatedAt.IsZero() {
+		cAt = time.Now().Format(time.RFC3339)
+	}
+	uAt := banner.UpdatedAt.Format(time.RFC3339)
+	if banner.UpdatedAt.IsZero() {
+		uAt = cAt
+	}
+
 	return &types.BannerItemResponse{
 		ID:         banner.ID.String(),
 		Title:      banner.Title,
@@ -98,6 +119,8 @@ func (l *BannerAdminLogic) CreateBanner(req *types.CreateBannerRequest) (*types.
 		ButtonText: banner.ButtonText,
 		SortOrder:  banner.SortOrder,
 		IsActive:   banner.IsActive,
+		CreatedAt:  cAt,
+		UpdatedAt:  uAt,
 	}, nil
 }
 
@@ -147,6 +170,15 @@ func (l *BannerAdminLogic) UpdateBanner(idStr string, req *types.UpdateBannerReq
 		return nil, err
 	}
 
+	cAtUp := banner.CreatedAt.Format(time.RFC3339)
+	if banner.CreatedAt.IsZero() {
+		cAtUp = time.Now().Format(time.RFC3339)
+	}
+	uAtUp := banner.UpdatedAt.Format(time.RFC3339)
+	if banner.UpdatedAt.IsZero() {
+		uAtUp = time.Now().Format(time.RFC3339)
+	}
+
 	return &types.BannerItemResponse{
 		ID:         banner.ID.String(),
 		Title:      banner.Title,
@@ -159,6 +191,8 @@ func (l *BannerAdminLogic) UpdateBanner(idStr string, req *types.UpdateBannerReq
 		ButtonText: banner.ButtonText,
 		SortOrder:  banner.SortOrder,
 		IsActive:   banner.IsActive,
+		CreatedAt:  cAtUp,
+		UpdatedAt:  uAtUp,
 	}, nil
 }
 
