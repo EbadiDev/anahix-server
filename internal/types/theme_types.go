@@ -19,6 +19,9 @@ type ThemeSettingsResponse struct {
 	CheckoutChannelTitle          string `json:"checkout_channel_title"`           // custom section title
 	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label"`       // custom sms button label
 	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label"`     // custom email button label
+	OffersBadgeText               string `json:"offers_badge_text,omitempty"`      // custom badge for /offers header
+	OffersTitle                   string `json:"offers_title,omitempty"`           // custom title for /offers header
+	OffersSubtitle                string `json:"offers_subtitle,omitempty"`        // custom subtitle for /offers header
 }
 
 type UpdateThemeSettingsRequest struct {
@@ -40,6 +43,9 @@ type UpdateThemeSettingsRequest struct {
 	CheckoutChannelTitle          string `json:"checkout_channel_title,omitempty"`
 	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label,omitempty"`
 	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label,omitempty"`
+	OffersBadgeText               string `json:"offers_badge_text,omitempty"`
+	OffersTitle                   string `json:"offers_title,omitempty"`
+	OffersSubtitle                string `json:"offers_subtitle,omitempty"`
 }
 
 type PasswordLoginRequest struct {

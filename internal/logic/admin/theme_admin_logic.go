@@ -102,6 +102,18 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.CheckoutChannelEmailLabel = s.Value
 			}
+		case "offers_badge_text":
+			if s.Value != "" {
+				res.OffersBadgeText = s.Value
+			}
+		case "offers_title":
+			if s.Value != "" {
+				res.OffersTitle = s.Value
+			}
+		case "offers_subtitle":
+			if s.Value != "" {
+				res.OffersSubtitle = s.Value
+			}
 		}
 	}
 
@@ -218,6 +230,33 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 			Value:    req.CheckoutChannelEmailLabel,
 			Type:     "string",
 			Desc:     "عنوان دکمه ارسال به ایمیل",
+		})
+	}
+	if req.OffersBadgeText != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme",
+			Key:      "offers_badge_text",
+			Value:    req.OffersBadgeText,
+			Type:     "string",
+			Desc:     "عنوان نشان هدر صفحه آفرها",
+		})
+	}
+	if req.OffersTitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme",
+			Key:      "offers_title",
+			Value:    req.OffersTitle,
+			Type:     "string",
+			Desc:     "تیتر اصلی هدر صفحه آفرها",
+		})
+	}
+	if req.OffersSubtitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme",
+			Key:      "offers_subtitle",
+			Value:    req.OffersSubtitle,
+			Type:     "string",
+			Desc:     "زیرعنوان توضیحات صفحه آفرها",
 		})
 	}
 

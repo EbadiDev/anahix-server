@@ -107,6 +107,18 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.CheckoutChannelEmailLabel = s.Value
 			}
+		case "offers_badge_text":
+			if s.Value != "" {
+				res.OffersBadgeText = s.Value
+			}
+		case "offers_title":
+			if s.Value != "" {
+				res.OffersTitle = s.Value
+			}
+		case "offers_subtitle":
+			if s.Value != "" {
+				res.OffersSubtitle = s.Value
+			}
 		}
 	}
 

@@ -153,6 +153,16 @@ func seedInitialData(db *gorm.DB) {
 		db.Save(&yasinAdmin)
 	}
 
+	// Ensure default checkout channels and auth are enabled
+	db.Model(&model.SystemSetting{}).Where("key IN ?", []string{
+		"checkout_channel_section_enabled",
+		"checkout_channel_sms_enabled",
+		"checkout_channel_email_enabled",
+		"auth_google_enabled",
+		"auth_github_enabled",
+		"auth_password_enabled",
+	}).Update("value", "true")
+
 	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)
 	var paymentCount int64
 	db.Model(&model.Payment{}).Count(&paymentCount)
