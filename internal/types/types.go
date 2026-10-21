@@ -606,6 +606,7 @@ type CouponListItem struct {
 	MaxUsage            int        `json:"max_usage"`
 	CurrentUsage        int        `json:"current_usage"`
 	Category            string     `json:"category"`
+	Label               string     `json:"label,omitempty"`
 	ExpiresAt           *time.Time `json:"expires_at,omitempty"`
 	IsActive            bool       `json:"is_active"`
 	CreatedAt           time.Time  `json:"created_at"`
@@ -620,6 +621,7 @@ type CreateCouponRequest struct {
 	PerUserLimit        int        `json:"per_user_limit"`
 	MaxUsage            int        `json:"max_usage"`
 	Category            string     `json:"category"`
+	Label               string     `json:"label"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	IsActive            bool       `json:"is_active"`
 }

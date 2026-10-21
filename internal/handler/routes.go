@@ -203,6 +203,8 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				// Coupons Management
 				protected.GET("/coupons", admHandler.ListCoupons)
 				protected.POST("/coupons", admHandler.CreateCoupon)
+				protected.PUT("/coupons/:id/toggle", admHandler.ToggleCoupon)
+				protected.DELETE("/coupons/:id", admHandler.DeleteCoupon)
 
 				// Buyer Reviews & Social Proof Moderation
 				protected.GET("/reviews", admHandler.ListReviews)

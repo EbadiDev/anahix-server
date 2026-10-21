@@ -25,6 +25,7 @@ type Coupon struct {
 	MaxUsage            int            `gorm:"default:0" json:"max_usage"`
 	CurrentUsage        int            `gorm:"default:0" json:"current_usage"`
 	Category            string         `gorm:"size:50;default:'all'" json:"category"`
+	Label               string         `gorm:"size:100" json:"label,omitempty"`
 	ExpiresAt           *time.Time     `json:"expires_at,omitempty"`
 	IsActive            bool           `gorm:"default:true;index" json:"is_active"`
 	CreatedAt           time.Time      `json:"created_at"`

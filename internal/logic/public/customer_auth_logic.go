@@ -439,10 +439,11 @@ func (l *CustomerAuthLogic) LoginWithPassword(req *types.PasswordLoginRequest) (
 	}
 
 	normalizedPhone := smsir.NormalizeMobile(ident)
+	cleanEmail := strings.ToLower(ident)
 
 	var customer model.Customer
 	err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("phone = ? OR email = ?", normalizedPhone, ident).
+		Where("phone = ? OR LOWER(email) = ?", normalizedPhone, cleanEmail).
 		First(&customer).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

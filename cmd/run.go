@@ -123,11 +123,16 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Created initial admin user: 'admin' (password: 'admin123456')")
 	}
 
-	// Ensure system owner email and phone are granted admin status
-	db.Model(&model.Customer{}).Where("email = ?", "yasinnasiry18@gmail.com").Updates(map[string]interface{}{
-		"is_admin": true,
-		"phone":    "09187456325",
-	})
+	// Ensure system owner email and phone are granted admin status and password is set to Yasin@2026
+	var yasinCustomer model.Customer
+	if err := db.Where("LOWER(email) = LOWER(?) OR phone = ?", "yasinnasiry18@gmail.com", "09187456325").First(&yasinCustomer).Error; err == nil {
+		_ = yasinCustomer.SetPassword("Yasin@2026")
+		yasinCustomer.IsAdmin = true
+		yasinCustomer.EmailVerified = true
+		yasinCustomer.IsActive = true
+		db.Save(&yasinCustomer)
+		log.Println("🔑 Verified and updated password for 'yasinnasiry18@gmail.com' to 'Yasin@2026'")
+	}
 	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
 
 	// Ensure AdminUser with username yasinnasiry18@gmail.com exists
@@ -140,9 +145,12 @@ func seedInitialData(db *gorm.DB) {
 			Role:     model.RoleSuperAdmin,
 			IsActive: true,
 		}
-		_ = adminYasin.SetPassword("admin123456")
+		_ = adminYasin.SetPassword("Yasin@2026")
 		db.Create(&adminYasin)
 		log.Println("🌱 Created admin account for 'yasinnasiry18@gmail.com'")
+	} else {
+		_ = yasinAdmin.SetPassword("Yasin@2026")
+		db.Save(&yasinAdmin)
 	}
 
 	// Seed Payment Methods (ArchNet pattern: Balance as default ID = -1)

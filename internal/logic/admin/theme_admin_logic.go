@@ -116,24 +116,54 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 		return "false"
 	}
 
-	defaultTheme := req.DefaultTheme
-	if defaultTheme == "" {
-		defaultTheme = "graphite"
-	}
+	var settingsToUpsert []model.SystemSetting
 
-	settingsToUpsert := []model.SystemSetting{
-		{Category: "theme", Key: "default_theme", Value: defaultTheme, Type: "string", Desc: "تم سیستم طراحی پیش‌فرض سراسری سایت"},
-		{Category: "theme", Key: "theme_event_name", Value: req.EventName, Type: "string", Desc: "عنوان رویداد یا مناسبت فعال"},
-		{Category: "theme", Key: "theme_event_active", Value: boolToStr(req.EventActive), Type: "bool", Desc: "فعال‌سازی حالت رویداد و مناسبت ویژه"},
-		{Category: "theme", Key: "theme_primary_color", Value: req.PrimaryColor, Type: "string", Desc: "رنگ اصلی سازمانی و رویداد"},
-		{Category: "theme", Key: "theme_accent_color", Value: req.AccentColor, Type: "string", Desc: "رنگ ثانویه یا تاکیدی رویداد"},
-		{Category: "theme", Key: "theme_header_announcement", Value: req.HeaderAnnouncement, Type: "string", Desc: "متن پیام نوار اعلان بالای سایت"},
-		{Category: "theme", Key: "theme_event_effect", Value: req.EventEffect, Type: "string", Desc: "افکت گرافیکی وایب‌فارسی (برف، ستاره، بادکنک و...)"},
-		{Category: "theme", Key: "theme_event_icon", Value: req.EventIcon, Type: "string", Desc: "آیکون سه بعدی یا گرافیکی رویداد"},
-		{Category: "auth", Key: "auth_google_enabled", Value: boolToStr(req.AuthGoogleEnabled), Type: "bool", Desc: "امکان ورود با حساب گوگل"},
-		{Category: "auth", Key: "auth_github_enabled", Value: boolToStr(req.AuthGithubEnabled), Type: "bool", Desc: "امکان ورود با حساب گیت‌هاب"},
-		{Category: "auth", Key: "auth_password_enabled", Value: boolToStr(req.AuthPasswordEnabled), Type: "bool", Desc: "امکان ورود با نام کاربری و کلمه عبور"},
-		{Category: "auth", Key: "auth_otp_required", Value: boolToStr(req.AuthOTPRequired), Type: "bool", Desc: "الزام تایید دومرحله‌ای پیامکی OTP"},
+	if req.DefaultTheme != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "default_theme", Value: req.DefaultTheme, Type: "string", Desc: "تم سیستم طراحی پیش‌فرض سراسری سایت",
+		})
+	}
+	if req.EventName != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_event_name", Value: req.EventName, Type: "string", Desc: "عنوان رویداد یا مناسبت فعال",
+		})
+	}
+	settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+		Category: "theme", Key: "theme_event_active", Value: boolToStr(req.EventActive), Type: "bool", Desc: "فعال‌سازی حالت رویداد و مناسبت ویژه",
+	})
+	if req.PrimaryColor != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_primary_color", Value: req.PrimaryColor, Type: "string", Desc: "رنگ اصلی سازمانی و رویداد",
+		})
+	}
+	if req.AccentColor != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_accent_color", Value: req.AccentColor, Type: "string", Desc: "رنگ ثانویه یا تاکیدی رویداد",
+		})
+	}
+	if req.HeaderAnnouncement != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_header_announcement", Value: req.HeaderAnnouncement, Type: "string", Desc: "متن پیام نوار اعلان بالای سایت",
+		})
+	}
+	if req.EventEffect != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_event_effect", Value: req.EventEffect, Type: "string", Desc: "افکت گرافیکی وایب‌فارسی",
+		})
+	}
+	if req.EventIcon != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "theme_event_icon", Value: req.EventIcon, Type: "string", Desc: "آیکون سه بعدی یا گرافیکی رویداد",
+		})
+	}
+	// Only update auth settings if they were actually configured/sent
+	if req.AuthPasswordEnabled || req.AuthGoogleEnabled || req.AuthGithubEnabled || req.AuthOTPRequired {
+		settingsToUpsert = append(settingsToUpsert,
+			model.SystemSetting{Category: "auth", Key: "auth_google_enabled", Value: boolToStr(req.AuthGoogleEnabled), Type: "bool", Desc: "امکان ورود با حساب گوگل"},
+			model.SystemSetting{Category: "auth", Key: "auth_github_enabled", Value: boolToStr(req.AuthGithubEnabled), Type: "bool", Desc: "امکان ورود با حساب گیت‌هاب"},
+			model.SystemSetting{Category: "auth", Key: "auth_password_enabled", Value: boolToStr(req.AuthPasswordEnabled), Type: "bool", Desc: "امکان ورود با نام کاربری و کلمه عبور"},
+			model.SystemSetting{Category: "auth", Key: "auth_otp_required", Value: boolToStr(req.AuthOTPRequired), Type: "bool", Desc: "الزام تایید دومرحله‌ای پیامکی OTP"},
+		)
 	}
 
 	if req.CheckoutChannelSectionEnabled != nil {

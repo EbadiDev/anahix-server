@@ -722,6 +722,36 @@ func (h *AdminHandler) CreateCoupon(c *gin.Context) {
 	result.HttpResult(c, resp, err)
 }
 
+func (h *AdminHandler) DeleteCoupon(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
+	err := l.DeleteCoupon(id)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_COUPON", "coupon", id, fmt.Sprintf("حذف کد تخفیف (%s)", id), nil, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"deleted": true}, err)
+}
+
+func (h *AdminHandler) ToggleCoupon(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ToggleCoupon(id)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "TOGGLE_COUPON", "coupon", id, fmt.Sprintf("تغییر وضعیت فعال‌بودن کوپن (%s)", id), nil, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, resp, err)
+}
+
 // Review Management Handlers
 
 func (h *AdminHandler) ListReviews(c *gin.Context) {

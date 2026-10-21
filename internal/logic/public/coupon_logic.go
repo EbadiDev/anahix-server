@@ -134,14 +134,16 @@ func (l *CouponLogic) ListPublicPromotions() ([]types.PublicPromotionCoupon, err
 
 	result := make([]types.PublicPromotionCoupon, 0, len(coupons))
 	for _, c := range coupons {
-		label := ""
-		if c.DiscountType == model.DiscountTypePercentage {
-			label = fmt.Sprintf("%d%% تخفیف", c.DiscountValue)
-		} else {
-			if c.DiscountValue >= 1000 {
-				label = fmt.Sprintf("%d هزار تومان تخفیف", c.DiscountValue/1000)
+		label := strings.TrimSpace(c.Label)
+		if label == "" {
+			if c.DiscountType == model.DiscountTypePercentage {
+				label = fmt.Sprintf("%d%% تخفیف", c.DiscountValue)
 			} else {
-				label = fmt.Sprintf("%d تومان تخفیف", c.DiscountValue)
+				if c.DiscountValue >= 1000 {
+					label = fmt.Sprintf("%d هزار تومان تخفیف", c.DiscountValue/1000)
+				} else {
+					label = fmt.Sprintf("%d تومان تخفیف", c.DiscountValue)
+				}
 			}
 		}
 		result = append(result, types.PublicPromotionCoupon{
