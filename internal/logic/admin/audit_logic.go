@@ -8,6 +8,7 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
+	"github.com/google/uuid"
 )
 
 type AuditLogic struct {
@@ -65,6 +66,42 @@ func (l *AuditLogic) ListTransactions(page, pageSize int, search, status, orderT
 		Total: total,
 		Items: items,
 	}, nil
+}
+
+func (l *AuditLogic) UpdateTransactionStatus(id string, newStatus string) error {
+	txID, err := uuid.Parse(id)
+	if err != nil {
+		return xerr.NewErrMsg("شناسه تراکنش نامعتبر است")
+	}
+
+	var tx model.Transaction
+	if err := l.svcCtx.DB.WithContext(l.ctx).First(&tx, "id = ?", txID).Error; err != nil {
+		return xerr.NewErrMsg("تراکنش یافت نشد")
+	}
+
+	tx.Status = model.TransactionStatus(newStatus)
+	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&tx).Error; err != nil {
+		return xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	// Sync order status if linked to a store order
+	if tx.OrderID != nil && *tx.OrderID != uuid.Nil {
+		var order model.Order
+		if err := l.svcCtx.DB.WithContext(l.ctx).First(&order, "id = ?", *tx.OrderID).Error; err == nil {
+			switch newStatus {
+			case "SUCCESS":
+				if order.Status == model.OrderPendingPayment {
+					l.svcCtx.DB.WithContext(l.ctx).Model(&order).Update("status", model.OrderPaid)
+				}
+			case "REFUNDED":
+				l.svcCtx.DB.WithContext(l.ctx).Model(&order).Update("status", model.OrderRefunded)
+			case "CANCELLED":
+				l.svcCtx.DB.WithContext(l.ctx).Model(&order).Update("status", model.OrderCancelled)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (l *AuditLogic) ListAdminActions(page, pageSize int, search, action, resource, adminUsername string) (*types.AdminActionLogListResponse, error) {

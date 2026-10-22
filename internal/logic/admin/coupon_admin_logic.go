@@ -57,7 +57,9 @@ func (l *CouponAdminLogic) ListCoupons() ([]types.CouponListItem, error) {
 			CurrentUsage:        c.CurrentUsage,
 			Category:            c.Category,
 			Label:               label,
+			StartsAt:            c.StartsAt,
 			ExpiresAt:           c.ExpiresAt,
+			ShowInCart:          c.ShowInCart,
 			IsActive:            c.IsActive,
 			CreatedAt:           c.CreatedAt,
 		})
@@ -97,6 +99,11 @@ func (l *CouponAdminLogic) CreateCoupon(req *types.CreateCouponRequest) (*types.
 		}
 	}
 
+	showInCart := true
+	if req.ShowInCart != nil {
+		showInCart = *req.ShowInCart
+	}
+
 	coupon := model.Coupon{
 		ID:                  uuid.New(),
 		Code:                code,
@@ -108,7 +115,9 @@ func (l *CouponAdminLogic) CreateCoupon(req *types.CreateCouponRequest) (*types.
 		MaxUsage:            req.MaxUsage,
 		Category:            category,
 		Label:               label,
+		StartsAt:            req.StartsAt,
 		ExpiresAt:           req.ExpiresAt,
+		ShowInCart:          showInCart,
 		IsActive:            req.IsActive,
 	}
 
@@ -128,7 +137,89 @@ func (l *CouponAdminLogic) CreateCoupon(req *types.CreateCouponRequest) (*types.
 		CurrentUsage:        0,
 		Category:            coupon.Category,
 		Label:               coupon.Label,
+		StartsAt:            coupon.StartsAt,
 		ExpiresAt:           coupon.ExpiresAt,
+		ShowInCart:          coupon.ShowInCart,
+		IsActive:            coupon.IsActive,
+		CreatedAt:           coupon.CreatedAt,
+	}, nil
+}
+
+func (l *CouponAdminLogic) UpdateCoupon(id string, req *types.UpdateCouponRequest) (*types.CouponListItem, error) {
+	couponID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, xerr.NewErrMsg("شناسه کوپن نامعتبر است")
+	}
+
+	var coupon model.Coupon
+	if err := l.svcCtx.DB.WithContext(l.ctx).First(&coupon, "id = ?", couponID).Error; err != nil {
+		return nil, xerr.NewErrMsg("کوپن یافت نشد")
+	}
+
+	if req.Code != "" {
+		newCode := strings.ToUpper(strings.TrimSpace(req.Code))
+		if newCode != coupon.Code {
+			var count int64
+			l.svcCtx.DB.WithContext(l.ctx).Model(&model.Coupon{}).Where("code = ? AND id != ?", newCode, couponID).Count(&count)
+			if count > 0 {
+				return nil, xerr.NewErrMsg("کد تخفیف با این نام از قبل وجود دارد")
+			}
+			coupon.Code = newCode
+		}
+	}
+
+	if req.DiscountType != "" {
+		coupon.DiscountType = model.DiscountType(req.DiscountType)
+	}
+	if req.DiscountValue > 0 {
+		coupon.DiscountValue = req.DiscountValue
+	}
+	if req.MinOrderAmountToman >= 0 {
+		coupon.MinOrderAmountToman = req.MinOrderAmountToman
+	}
+	if req.MaxDiscountToman >= 0 {
+		coupon.MaxDiscountToman = req.MaxDiscountToman
+	}
+	if req.PerUserLimit > 0 {
+		coupon.PerUserLimit = req.PerUserLimit
+	}
+	if req.MaxUsage > 0 {
+		coupon.MaxUsage = req.MaxUsage
+	}
+	if req.Category != "" {
+		coupon.Category = req.Category
+	}
+	if req.Label != "" {
+		coupon.Label = strings.TrimSpace(req.Label)
+	}
+	if req.StartsAt != nil {
+		coupon.StartsAt = req.StartsAt
+	}
+	coupon.ExpiresAt = req.ExpiresAt
+	if req.ShowInCart != nil {
+		coupon.ShowInCart = *req.ShowInCart
+	}
+	coupon.IsActive = req.IsActive
+
+	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&coupon).Error; err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	return &types.CouponListItem{
+		ID:                  coupon.ID.String(),
+		Code:                coupon.Code,
+		DiscountType:        string(coupon.DiscountType),
+		DiscountValue:       coupon.DiscountValue,
+		MinOrderAmountToman: coupon.MinOrderAmountToman,
+		MaxDiscountToman:    coupon.MaxDiscountToman,
+		PerUserLimit:        coupon.PerUserLimit,
+		MaxUsage:            coupon.MaxUsage,
+		CurrentUsage:        coupon.CurrentUsage,
+		Category:            coupon.Category,
+		Label:               coupon.Label,
+		StartsAt:            coupon.StartsAt,
+		ExpiresAt:           coupon.ExpiresAt,
+		ShowInCart:          coupon.ShowInCart,
 		IsActive:            coupon.IsActive,
 		CreatedAt:           coupon.CreatedAt,
 	}, nil
@@ -174,7 +265,9 @@ func (l *CouponAdminLogic) ToggleCoupon(id string) (*types.CouponListItem, error
 		CurrentUsage:        coupon.CurrentUsage,
 		Category:            coupon.Category,
 		Label:               coupon.Label,
+		StartsAt:            coupon.StartsAt,
 		ExpiresAt:           coupon.ExpiresAt,
+		ShowInCart:          coupon.ShowInCart,
 		IsActive:            coupon.IsActive,
 		CreatedAt:           coupon.CreatedAt,
 	}, nil

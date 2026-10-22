@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -425,13 +426,31 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			})
 		}
 
-		// Referral Tracking & Commission
+		// Referral Tracking & Commission (Dynamic percentage from system settings)
 		if req.ReferralCode != "" && isPaid && totalAmountToman > 0 {
-			var referrer model.Customer
-			if err := tx.Where("referral_code = ?", req.ReferralCode).First(&referrer).Error; err == nil {
-				if referrer.Phone != req.CustomerPhone {
-					commissionRate := 0.10 // 10% commission
-					commissionToman := int64(float64(totalAmountToman) * commissionRate)
+			var refSetting model.SystemSetting
+			isRefActive := true
+			if err := tx.Where("category = ? AND key = ?", "loyalty", "referral_enabled").First(&refSetting).Error; err == nil {
+				val := strings.ToLower(strings.TrimSpace(refSetting.Value))
+				if val == "false" || val == "disabled" || val == "coming_soon" {
+					isRefActive = false
+				}
+			}
+
+			if isRefActive {
+				var referrer model.Customer
+				if err := tx.Where("referral_code = ?", req.ReferralCode).First(&referrer).Error; err == nil {
+					if referrer.Phone != req.CustomerPhone {
+						commissionPct := 10.0
+						var commSetting model.SystemSetting
+						if err := tx.Where("category = ? AND key = ?", "loyalty", "referral_commission_rate").First(&commSetting).Error; err == nil {
+							if parsedRate, err := strconv.ParseFloat(strings.TrimSpace(commSetting.Value), 64); err == nil && parsedRate > 0 {
+								commissionPct = parsedRate
+							}
+						}
+
+						commissionRate := commissionPct / 100.0
+						commissionToman := int64(float64(totalAmountToman) * commissionRate)
 
 					var customerID *uuid.UUID
 					if payingCustomer != nil {
@@ -471,6 +490,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 				}
 			}
 		}
+	}
 
 		// Financial transaction log
 		txnStatus := model.TxStatusPending

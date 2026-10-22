@@ -10,10 +10,11 @@ import (
 type TransactionStatus string
 
 const (
-	TxStatusSuccess  TransactionStatus = "SUCCESS"
-	TxStatusPending  TransactionStatus = "PENDING"
-	TxStatusFailed   TransactionStatus = "FAILED"
-	TxStatusRefunded TransactionStatus = "REFUNDED"
+	TxStatusSuccess   TransactionStatus = "SUCCESS"
+	TxStatusPending   TransactionStatus = "PENDING"
+	TxStatusFailed    TransactionStatus = "FAILED"
+	TxStatusRefunded  TransactionStatus = "REFUNDED"
+	TxStatusCancelled TransactionStatus = "CANCELLED"
 )
 
 type TransactionType string

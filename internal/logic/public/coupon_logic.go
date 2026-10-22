@@ -40,8 +40,15 @@ func (l *CouponLogic) ValidateCoupon(req *types.ValidateCouponRequest) (*types.V
 		}, nil
 	}
 
-	// 1. Expiration check
+	// 1. Expiration & Start date check
 	now := time.Now()
+	if coupon.StartsAt != nil && now.Before(*coupon.StartsAt) {
+		return &types.ValidateCouponResponse{
+			Valid:   false,
+			Code:    code,
+			Message: "مهلت استفاده از این کد تخفیف هنوز آغاز نشده است",
+		}, nil
+	}
 	if coupon.ExpiresAt != nil && now.After(*coupon.ExpiresAt) {
 		return &types.ValidateCouponResponse{
 			Valid:   false,
@@ -125,7 +132,7 @@ func (l *CouponLogic) ListPublicPromotions() ([]types.PublicPromotionCoupon, err
 	var coupons []model.Coupon
 	now := time.Now()
 	err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("is_active = ? AND (expires_at IS NULL OR expires_at > ?)", true, now).
+		Where("is_active = ? AND show_in_cart = ? AND (expires_at IS NULL OR expires_at > ?) AND (starts_at IS NULL OR starts_at <= ?)", true, true, now, now).
 		Order("discount_value desc").
 		Find(&coupons).Error
 	if err != nil {

@@ -607,7 +607,9 @@ type CouponListItem struct {
 	CurrentUsage        int        `json:"current_usage"`
 	Category            string     `json:"category"`
 	Label               string     `json:"label,omitempty"`
+	StartsAt            *time.Time `json:"starts_at,omitempty"`
 	ExpiresAt           *time.Time `json:"expires_at,omitempty"`
+	ShowInCart          bool       `json:"show_in_cart"`
 	IsActive            bool       `json:"is_active"`
 	CreatedAt           time.Time  `json:"created_at"`
 }
@@ -622,20 +624,39 @@ type CreateCouponRequest struct {
 	MaxUsage            int        `json:"max_usage"`
 	Category            string     `json:"category"`
 	Label               string     `json:"label"`
+	StartsAt            *time.Time `json:"starts_at"`
 	ExpiresAt           *time.Time `json:"expires_at"`
+	ShowInCart          *bool      `json:"show_in_cart"`
+	IsActive            bool       `json:"is_active"`
+}
+
+type UpdateCouponRequest struct {
+	Code                string     `json:"code"`
+	DiscountType        string     `json:"discount_type"`
+	DiscountValue       int64      `json:"discount_value"`
+	MinOrderAmountToman int64      `json:"min_order_amount_toman"`
+	MaxDiscountToman    int64      `json:"max_discount_toman"`
+	PerUserLimit        int        `json:"per_user_limit"`
+	MaxUsage            int        `json:"max_usage"`
+	Category            string     `json:"category"`
+	Label               string     `json:"label"`
+	StartsAt            *time.Time `json:"starts_at"`
+	ExpiresAt           *time.Time `json:"expires_at"`
+	ShowInCart          *bool      `json:"show_in_cart"`
 	IsActive            bool       `json:"is_active"`
 }
 
 // Referral DTOs
 
 type ReferralStatsResponse struct {
-	ReferralCode               string  `json:"referral_code"`
-	ReferralURL                string  `json:"referral_url"`
-	CommissionRatePercent      float64 `json:"commission_rate_percent"`
-	TotalReferrals             int     `json:"total_referrals"`
-	SuccessfulOrders           int     `json:"successful_orders"`
-	TotalCommissionToman       int64   `json:"total_commission_toman"`
-	WithdrawableCommissionToman int64  `json:"withdrawable_commission_toman"`
+	SystemStatus                string  `json:"system_status"` // "active", "coming_soon", "disabled"
+	ReferralCode                string  `json:"referral_code"`
+	ReferralURL                 string  `json:"referral_url"`
+	CommissionRatePercent       float64 `json:"commission_rate_percent"`
+	TotalReferrals              int     `json:"total_referrals"`
+	SuccessfulOrders            int     `json:"successful_orders"`
+	TotalCommissionToman        int64   `json:"total_commission_toman"`
+	WithdrawableCommissionToman int64   `json:"withdrawable_commission_toman"`
 }
 
 type TransferCommissionResponse struct {

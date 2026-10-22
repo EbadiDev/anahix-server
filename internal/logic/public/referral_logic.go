@@ -3,6 +3,8 @@ package public
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -26,6 +28,35 @@ func NewReferralLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Referral
 }
 
 func (l *ReferralLogic) GetReferralStats(customerPhone string) (*types.ReferralStatsResponse, error) {
+	// 1. Check referral system status
+	systemStatus := "active"
+	var refSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "referral_enabled").First(&refSetting).Error; err == nil {
+		val := strings.ToLower(strings.TrimSpace(refSetting.Value))
+		if val == "false" || val == "disabled" {
+			systemStatus = "disabled"
+		} else if val == "coming_soon" {
+			systemStatus = "coming_soon"
+		} else {
+			systemStatus = "active"
+		}
+	}
+
+	if systemStatus == "disabled" {
+		return &types.ReferralStatsResponse{
+			SystemStatus: "disabled",
+		}, nil
+	}
+
+	// 2. Dynamic commission rate
+	commissionRate := 10.0
+	var rateSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "referral_commission_rate").First(&rateSetting).Error; err == nil {
+		if rateVal, err := strconv.ParseFloat(strings.TrimSpace(rateSetting.Value), 64); err == nil && rateVal > 0 {
+			commissionRate = rateVal
+		}
+	}
+
 	var customer model.Customer
 	if err := l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", customerPhone).First(&customer).Error; err != nil {
 		return nil, xerr.NewErrMsg("کاربر یافت نشد")
@@ -56,9 +87,10 @@ func (l *ReferralLogic) GetReferralStats(customerPhone string) (*types.ReferralS
 	}
 
 	return &types.ReferralStatsResponse{
+		SystemStatus:                systemStatus,
 		ReferralCode:                referralCode,
 		ReferralURL:                 fmt.Sprintf("https://anahix.com/?ref=%s", referralCode),
-		CommissionRatePercent:       10.0,
+		CommissionRatePercent:       commissionRate,
 		TotalReferrals:              int(totalReferrals),
 		SuccessfulOrders:            int(successfulOrders),
 		TotalCommissionToman:        totalCommissionToman,

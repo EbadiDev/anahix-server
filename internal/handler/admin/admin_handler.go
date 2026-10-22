@@ -611,6 +611,29 @@ func (h *AdminHandler) ListTransactions(c *gin.Context) {
 	result.HttpResult(c, resp, err)
 }
 
+func (h *AdminHandler) UpdateTransactionStatus(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req struct {
+		Status string `json:"status" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewAuditLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateTransactionStatus(id, req.Status)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_TX_STATUS", "transaction", id, fmt.Sprintf("تغییر وضعیت تراکنش به (%s)", req.Status), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"updated": true}, err)
+}
+
 func (h *AdminHandler) ListAdminActions(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "25"))
@@ -718,6 +741,27 @@ func (h *AdminHandler) CreateCoupon(c *gin.Context) {
 	resp, err := l.CreateCoupon(&req)
 	if err == nil {
 		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_COUPON", "coupon", resp.ID, fmt.Sprintf("ایجاد کد تخفیف جدید (%s)", resp.Code), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateCoupon(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.InvalidParams))
+		return
+	}
+
+	var req types.UpdateCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.UpdateCoupon(id, &req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_COUPON", "coupon", id, fmt.Sprintf("ویرایش کد تخفیف (%s)", id), req, c.ClientIP(), c.Request.UserAgent())
 	}
 	result.HttpResult(c, resp, err)
 }
