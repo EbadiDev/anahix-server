@@ -85,7 +85,7 @@ func seedLoyaltyData(db *gorm.DB) {
 		log.Println("🌱 Seeded default Loyalty Tiers (bronze, silver, gold, diamond)")
 	}
 
-	// Seed loyalty system settings if not exists
+	// Seed loyalty and referral system settings if not exists
 	var settingCount int64
 	db.Model(&model.SystemSetting{}).Where("category = ?", "loyalty").Count(&settingCount)
 	if settingCount == 0 {
@@ -111,11 +111,39 @@ func seedLoyaltyData(db *gorm.DB) {
 				Type:     "bool",
 				Desc:     "ارتقای خودکار سطح کاربر پس از تکمیل یا پرداخت سفارش",
 			},
+			{
+				Category: "loyalty",
+				Key:      "referral_enabled",
+				Value:    "active",
+				Type:     "string",
+				Desc:     "وضعیت همکاری در فروش (active, coming_soon, disabled)",
+			},
+			{
+				Category: "loyalty",
+				Key:      "referral_commission_rate",
+				Value:    "10",
+				Type:     "number",
+				Desc:     "درصد پورسانت معرف از هر سفارش",
+			},
+			{
+				Category: "loyalty",
+				Key:      "referral_bonus_amount",
+				Value:    "20000",
+				Type:     "number",
+				Desc:     "پاداش شارژ هدیه برای خریدار جدید (تومان)",
+			},
+			{
+				Category: "loyalty",
+				Key:      "referral_min_withdraw",
+				Value:    "50000",
+				Type:     "number",
+				Desc:     "حداقل موجودی جهت تسویه‌حساب نقدی (تومان)",
+			},
 		}
 
 		for _, s := range settings {
 			db.Create(&s)
 		}
-		log.Println("🌱 Seeded Loyalty Club system settings (category: 'loyalty')")
+		log.Println("🌱 Seeded Loyalty Club & Referral system settings (category: 'loyalty')")
 	}
 }

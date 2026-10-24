@@ -56,6 +56,7 @@ func setupTestCustomerAdminDB(t *testing.T) (*svc.ServiceContext, model.Customer
 		ID:                   customerID,
 		Phone:                "09121112233",
 		FullName:             "علی علوی",
+		AvatarURL:            "https://example.com/avatar.png",
 		Email:                "ali@example.com",
 		BalanceToman:         100000,
 		ReferralCode:         "ANX-TEST",
@@ -136,6 +137,9 @@ func TestCustomerAdminLogic_ListAnd360(t *testing.T) {
 	if listResp.Customers[0].Phone != cust.Phone {
 		t.Fatalf("expected phone %s, got %s", cust.Phone, listResp.Customers[0].Phone)
 	}
+	if listResp.Customers[0].AvatarURL != "https://example.com/avatar.png" {
+		t.Fatalf("expected avatar_url https://example.com/avatar.png, got %s", listResp.Customers[0].AvatarURL)
+	}
 	if listResp.Customers[0].Tier != "vip" {
 		t.Fatalf("expected tier vip, got %s", listResp.Customers[0].Tier)
 	}
@@ -150,6 +154,9 @@ func TestCustomerAdminLogic_ListAnd360(t *testing.T) {
 	}
 	if detail360.Customer.Phone != cust.Phone {
 		t.Fatalf("expected phone %s, got %s", cust.Phone, detail360.Customer.Phone)
+	}
+	if detail360.Customer.AvatarURL != "https://example.com/avatar.png" {
+		t.Fatalf("expected 360 avatar_url https://example.com/avatar.png, got %s", detail360.Customer.AvatarURL)
 	}
 	if len(detail360.Orders) != 1 {
 		t.Fatalf("expected 1 order, got %d", len(detail360.Orders))

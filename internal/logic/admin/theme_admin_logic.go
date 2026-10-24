@@ -26,7 +26,7 @@ func NewThemeAdminLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ThemeA
 func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 	var settings []model.SystemSetting
 	if err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("category IN ?", []string{"theme", "auth"}).
+		Where("category IN ?", []string{"theme", "auth", "checkout", "branding", "seo", "menus", "apikeys", "fivesim"}).
 		Find(&settings).Error; err != nil {
 		return nil, err
 	}
@@ -113,6 +113,82 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 		case "offers_subtitle":
 			if s.Value != "" {
 				res.OffersSubtitle = s.Value
+			}
+		case "site_name_fa":
+			if s.Value != "" {
+				res.SiteNameFA = s.Value
+			}
+		case "site_name_en":
+			if s.Value != "" {
+				res.SiteNameEN = s.Value
+			}
+		case "site_subtitle":
+			if s.Value != "" {
+				res.SiteSubtitle = s.Value
+			}
+		case "site_favicon_url":
+			if s.Value != "" {
+				res.SiteFaviconURL = s.Value
+			}
+		case "site_logo_url":
+			if s.Value != "" {
+				res.SiteLogoURL = s.Value
+			}
+		case "meta_title":
+			if s.Value != "" {
+				res.MetaTitle = s.Value
+			}
+		case "meta_description":
+			if s.Value != "" {
+				res.MetaDescription = s.Value
+			}
+		case "meta_keywords":
+			if s.Value != "" {
+				res.MetaKeywords = s.Value
+			}
+		case "og_image_url":
+			if s.Value != "" {
+				res.OGImageURL = s.Value
+			}
+		case "support_phone":
+			if s.Value != "" {
+				res.SupportPhone = s.Value
+			}
+		case "support_telegram":
+			if s.Value != "" {
+				res.SupportTelegram = s.Value
+			}
+		case "header_menu_json":
+			if s.Value != "" {
+				res.HeaderMenuJSON = s.Value
+			}
+		case "footer_menu_json":
+			if s.Value != "" {
+				res.FooterMenuJSON = s.Value
+			}
+		case "sms_api_key":
+			if s.Value != "" {
+				res.SMSApiKey = s.Value
+			}
+		case "sms_line_number":
+			if s.Value != "" {
+				res.SMSLineNumber = s.Value
+			}
+		case "zarinpal_merchant_id":
+			if s.Value != "" {
+				res.ZarinpalMerchantID = s.Value
+			}
+		case "google_client_id":
+			if s.Value != "" {
+				res.GoogleClientID = s.Value
+			}
+		case "github_client_id":
+			if s.Value != "" {
+				res.GithubClientID = s.Value
+			}
+		case "fivesim_api_key", "vn_api_key":
+			if s.Value != "" {
+				res.FivesimApiKey = s.Value
 			}
 		}
 	}
@@ -257,6 +333,101 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 			Value:    req.OffersSubtitle,
 			Type:     "string",
 			Desc:     "زیرعنوان توضیحات صفحه آفرها",
+		})
+	}
+	if req.SiteNameFA != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "site_name_fa", Value: req.SiteNameFA, Type: "string", Desc: "نام فارسی وبسایت",
+		})
+	}
+	if req.SiteNameEN != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "site_name_en", Value: req.SiteNameEN, Type: "string", Desc: "نام انگلیسی وبسایت",
+		})
+	}
+	if req.SiteSubtitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "site_subtitle", Value: req.SiteSubtitle, Type: "string", Desc: "زیرعنوان یا شعار برند",
+		})
+	}
+	if req.SiteFaviconURL != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "site_favicon_url", Value: req.SiteFaviconURL, Type: "string", Desc: "آیکون فاوآیکون وبسایت (FavIcon)",
+		})
+	}
+	if req.SiteLogoURL != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "site_logo_url", Value: req.SiteLogoURL, Type: "string", Desc: "لوگوی رسمی وبسایت",
+		})
+	}
+	if req.MetaTitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "seo", Key: "meta_title", Value: req.MetaTitle, Type: "string", Desc: "عنوان متا سئو صفحه اصلی",
+		})
+	}
+	if req.MetaDescription != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "seo", Key: "meta_description", Value: req.MetaDescription, Type: "string", Desc: "توضیحات متا سئو",
+		})
+	}
+	if req.MetaKeywords != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "seo", Key: "meta_keywords", Value: req.MetaKeywords, Type: "string", Desc: "کلمات کلیدی سئو",
+		})
+	}
+	if req.OGImageURL != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "seo", Key: "og_image_url", Value: req.OGImageURL, Type: "string", Desc: "تصویر شبکه‌های اجتماعی OpenGraph",
+		})
+	}
+	if req.SupportPhone != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "support_phone", Value: req.SupportPhone, Type: "string", Desc: "شماره تماس پشتیبانی",
+		})
+	}
+	if req.SupportTelegram != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "support_telegram", Value: req.SupportTelegram, Type: "string", Desc: "آیدی تلگرام پشتیبانی",
+		})
+	}
+	if req.HeaderMenuJSON != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "menus", Key: "header_menu_json", Value: req.HeaderMenuJSON, Type: "string", Desc: "پیکربندی منوی هدر سایت",
+		})
+	}
+	if req.FooterMenuJSON != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "menus", Key: "footer_menu_json", Value: req.FooterMenuJSON, Type: "string", Desc: "پیکربندی منوی فوتر سایت",
+		})
+	}
+	if req.SMSApiKey != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "apikeys", Key: "sms_api_key", Value: req.SMSApiKey, Type: "string", Desc: "کلید وب‌سرویس سامانه پیامک",
+		})
+	}
+	if req.SMSLineNumber != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "apikeys", Key: "sms_line_number", Value: req.SMSLineNumber, Type: "string", Desc: "شماره خط فرستنده پیامک",
+		})
+	}
+	if req.ZarinpalMerchantID != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "apikeys", Key: "zarinpal_merchant_id", Value: req.ZarinpalMerchantID, Type: "string", Desc: "مرچنت کد درگاه بانکی زرین‌پال",
+		})
+	}
+	if req.GoogleClientID != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "apikeys", Key: "google_client_id", Value: req.GoogleClientID, Type: "string", Desc: "شناسه کلاینت گوگل OAuth",
+		})
+	}
+	if req.GithubClientID != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "apikeys", Key: "github_client_id", Value: req.GithubClientID, Type: "string", Desc: "شناسه کلاینت گیت‌هاب OAuth",
+		})
+	}
+	if req.FivesimApiKey != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "fivesim", Key: "fivesim_api_key", Value: req.FivesimApiKey, Type: "string", Desc: "کلید API سامانه شماره مجازی ۵SIM",
 		})
 	}
 

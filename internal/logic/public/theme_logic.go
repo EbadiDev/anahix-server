@@ -23,7 +23,7 @@ func NewThemeLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ThemeLogic 
 func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 	var settings []model.SystemSetting
 	if err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("category IN ?", []string{"theme", "auth", "checkout"}).
+		Where("category IN ?", []string{"theme", "auth", "checkout", "branding", "seo", "menus"}).
 		Find(&settings).Error; err != nil {
 		return nil, err
 	}
@@ -118,6 +118,58 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 		case "offers_subtitle":
 			if s.Value != "" {
 				res.OffersSubtitle = s.Value
+			}
+		case "site_name_fa":
+			if s.Value != "" {
+				res.SiteNameFA = s.Value
+			}
+		case "site_name_en":
+			if s.Value != "" {
+				res.SiteNameEN = s.Value
+			}
+		case "site_subtitle":
+			if s.Value != "" {
+				res.SiteSubtitle = s.Value
+			}
+		case "site_favicon_url":
+			if s.Value != "" {
+				res.SiteFaviconURL = s.Value
+			}
+		case "site_logo_url":
+			if s.Value != "" {
+				res.SiteLogoURL = s.Value
+			}
+		case "meta_title":
+			if s.Value != "" {
+				res.MetaTitle = s.Value
+			}
+		case "meta_description":
+			if s.Value != "" {
+				res.MetaDescription = s.Value
+			}
+		case "meta_keywords":
+			if s.Value != "" {
+				res.MetaKeywords = s.Value
+			}
+		case "og_image_url":
+			if s.Value != "" {
+				res.OGImageURL = s.Value
+			}
+		case "support_phone":
+			if s.Value != "" {
+				res.SupportPhone = s.Value
+			}
+		case "support_telegram":
+			if s.Value != "" {
+				res.SupportTelegram = s.Value
+			}
+		case "header_menu_json":
+			if s.Value != "" {
+				res.HeaderMenuJSON = s.Value
+			}
+		case "footer_menu_json":
+			if s.Value != "" {
+				res.FooterMenuJSON = s.Value
 			}
 		}
 	}

@@ -71,7 +71,7 @@ func (l *CouponLogic) ValidateCoupon(req *types.ValidateCouponRequest) (*types.V
 		return &types.ValidateCouponResponse{
 			Valid:   false,
 			Code:    code,
-			Message: "حداقل مبلغ سفارش برای استفاده از این کوپن رعایت نشده است",
+			Message: "حداقل مبلغ سفارش برای استفاده از این کد تخفیف رعایت نشده است",
 		}, nil
 	}
 

@@ -148,12 +148,12 @@ func (l *CouponAdminLogic) CreateCoupon(req *types.CreateCouponRequest) (*types.
 func (l *CouponAdminLogic) UpdateCoupon(id string, req *types.UpdateCouponRequest) (*types.CouponListItem, error) {
 	couponID, err := uuid.Parse(id)
 	if err != nil {
-		return nil, xerr.NewErrMsg("شناسه کوپن نامعتبر است")
+		return nil, xerr.NewErrMsg("شناسه کد تخفیف نامعتبر است")
 	}
 
 	var coupon model.Coupon
 	if err := l.svcCtx.DB.WithContext(l.ctx).First(&coupon, "id = ?", couponID).Error; err != nil {
-		return nil, xerr.NewErrMsg("کوپن یافت نشد")
+		return nil, xerr.NewErrMsg("کد تخفیف یافت نشد")
 	}
 
 	if req.Code != "" {
@@ -199,7 +199,9 @@ func (l *CouponAdminLogic) UpdateCoupon(id string, req *types.UpdateCouponReques
 	if req.ShowInCart != nil {
 		coupon.ShowInCart = *req.ShowInCart
 	}
-	coupon.IsActive = req.IsActive
+	if req.IsActive != nil {
+		coupon.IsActive = *req.IsActive
+	}
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&coupon).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
@@ -228,7 +230,7 @@ func (l *CouponAdminLogic) UpdateCoupon(id string, req *types.UpdateCouponReques
 func (l *CouponAdminLogic) DeleteCoupon(id string) error {
 	couponID, err := uuid.Parse(id)
 	if err != nil {
-		return xerr.NewErrMsg("شناسه کوپن نامعتبر است")
+		return xerr.NewErrMsg("شناسه کد تخفیف نامعتبر است")
 	}
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", couponID).Delete(&model.Coupon{}).Error; err != nil {
@@ -240,12 +242,12 @@ func (l *CouponAdminLogic) DeleteCoupon(id string) error {
 func (l *CouponAdminLogic) ToggleCoupon(id string) (*types.CouponListItem, error) {
 	couponID, err := uuid.Parse(id)
 	if err != nil {
-		return nil, xerr.NewErrMsg("شناسه کوپن نامعتبر است")
+		return nil, xerr.NewErrMsg("شناسه کد تخفیف نامعتبر است")
 	}
 
 	var coupon model.Coupon
 	if err := l.svcCtx.DB.WithContext(l.ctx).First(&coupon, "id = ?", couponID).Error; err != nil {
-		return nil, xerr.NewErrMsg("کوپن یافت نشد")
+		return nil, xerr.NewErrMsg("کد تخفیف یافت نشد")
 	}
 
 	coupon.IsActive = !coupon.IsActive

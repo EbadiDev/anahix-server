@@ -22,6 +22,25 @@ type ThemeSettingsResponse struct {
 	OffersBadgeText               string `json:"offers_badge_text,omitempty"`      // custom badge for /offers header
 	OffersTitle                   string `json:"offers_title,omitempty"`           // custom title for /offers header
 	OffersSubtitle                string `json:"offers_subtitle,omitempty"`        // custom subtitle for /offers header
+	SiteNameFA                    string `json:"site_name_fa,omitempty"`
+	SiteNameEN                    string `json:"site_name_en,omitempty"`
+	SiteSubtitle                  string `json:"site_subtitle,omitempty"`
+	SiteFaviconURL                string `json:"site_favicon_url,omitempty"`
+	SiteLogoURL                   string `json:"site_logo_url,omitempty"`
+	MetaTitle                     string `json:"meta_title,omitempty"`
+	MetaDescription               string `json:"meta_description,omitempty"`
+	MetaKeywords                  string `json:"meta_keywords,omitempty"`
+	OGImageURL                    string `json:"og_image_url,omitempty"`
+	SupportPhone                  string `json:"support_phone,omitempty"`
+	SupportTelegram               string `json:"support_telegram,omitempty"`
+	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
+	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	SMSApiKey                     string `json:"sms_api_key,omitempty"`
+	SMSLineNumber                 string `json:"sms_line_number,omitempty"`
+	ZarinpalMerchantID            string `json:"zarinpal_merchant_id,omitempty"`
+	GoogleClientID                string `json:"google_client_id,omitempty"`
+	GithubClientID                string `json:"github_client_id,omitempty"`
+	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
 }
 
 type UpdateThemeSettingsRequest struct {
@@ -46,6 +65,25 @@ type UpdateThemeSettingsRequest struct {
 	OffersBadgeText               string `json:"offers_badge_text,omitempty"`
 	OffersTitle                   string `json:"offers_title,omitempty"`
 	OffersSubtitle                string `json:"offers_subtitle,omitempty"`
+	SiteNameFA                    string `json:"site_name_fa,omitempty"`
+	SiteNameEN                    string `json:"site_name_en,omitempty"`
+	SiteSubtitle                  string `json:"site_subtitle,omitempty"`
+	SiteFaviconURL                string `json:"site_favicon_url,omitempty"`
+	SiteLogoURL                   string `json:"site_logo_url,omitempty"`
+	MetaTitle                     string `json:"meta_title,omitempty"`
+	MetaDescription               string `json:"meta_description,omitempty"`
+	MetaKeywords                  string `json:"meta_keywords,omitempty"`
+	OGImageURL                    string `json:"og_image_url,omitempty"`
+	SupportPhone                  string `json:"support_phone,omitempty"`
+	SupportTelegram               string `json:"support_telegram,omitempty"`
+	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
+	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	SMSApiKey                     string `json:"sms_api_key,omitempty"`
+	SMSLineNumber                 string `json:"sms_line_number,omitempty"`
+	ZarinpalMerchantID            string `json:"zarinpal_merchant_id,omitempty"`
+	GoogleClientID                string `json:"google_client_id,omitempty"`
+	GithubClientID                string `json:"github_client_id,omitempty"`
+	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
 }
 
 type PasswordLoginRequest struct {

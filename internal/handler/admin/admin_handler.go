@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
@@ -196,27 +195,9 @@ func (h *AdminHandler) CompleteOrder(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListProducts(c *gin.Context) {
-	var products []model.Product
-	err := h.svcCtx.DB.WithContext(c.Request.Context()).
-		Order("created_at desc").
-		Find(&products).Error
-	if err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
-		return
-	}
-
-	for i := range products {
-		var stock int64
-		if products[i].DeliveryType == model.DeliveryInstant {
-			h.svcCtx.DB.WithContext(c.Request.Context()).
-				Model(&model.InventoryItem{}).
-				Where("product_id = ? AND status = ?", products[i].ID, model.InventoryAvailable).
-				Count(&stock)
-		}
-		products[i].AvailableStock = stock
-	}
-
-	result.HttpResult(c, products, nil)
+	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
+	products, err := l.ListProducts()
+	result.HttpResult(c, products, err)
 }
 
 func (h *AdminHandler) CreateProduct(c *gin.Context) {
@@ -226,22 +207,12 @@ func (h *AdminHandler) CreateProduct(c *gin.Context) {
 		return
 	}
 
-	if p.ID == uuid.Nil {
-		p.ID = uuid.New()
+	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
+	created, err := l.CreateProduct(&p)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_PRODUCT", "product", created.ID.String(), fmt.Sprintf("ایجاد محصول جدید: %s (%s)", created.TitleFA, created.Slug), created, c.ClientIP(), c.Request.UserAgent())
 	}
-
-	if p.Slug == "" {
-		p.Slug = fmt.Sprintf("prod-%s", p.ID.String()[:8])
-	}
-
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Create(&p).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
-		return
-	}
-
-	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_PRODUCT", "product", p.ID.String(), fmt.Sprintf("ایجاد محصول جدید: %s (%s)", p.TitleFA, p.Slug), p, c.ClientIP(), c.Request.UserAgent())
-
-	result.HttpResult(c, p, nil)
+	result.HttpResult(c, created, err)
 }
 
 func (h *AdminHandler) UpdateProduct(c *gin.Context) {
@@ -252,182 +223,18 @@ func (h *AdminHandler) UpdateProduct(c *gin.Context) {
 		return
 	}
 
-	var existing model.Product
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&existing, "id = ?", prodID).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
-		return
-	}
-
-	var req struct {
-		Title            *string                `json:"title"`
-		TitleFA          *string                `json:"title_fa"`
-		Slug             *string                `json:"slug"`
-		Description      *string                `json:"description"`
-		Category         *model.ProductCategory `json:"category"`
-		DeliveryType     *model.DeliveryType    `json:"delivery_type"`
-		SLAMinMinutes    *int                   `json:"sla_min_minutes"`
-		SLAMaxMinutes    *int                   `json:"sla_max_minutes"`
-		SLADisplayText   *string                `json:"sla_display_text"`
-		OperatingHours   *string                `json:"operating_hours"`
-		BaseCostUSD      *float64               `json:"base_cost_usd"`
-		PriceToman       *int64                 `json:"price_toman"`
-		IsActive         *bool                  `json:"is_active"`
-		Instructions     *string                `json:"instructions"`
-		GroupTag         *string                `json:"group_tag"`
-		GroupTitleFA     *string                `json:"group_title_fa"`
-		DeliveryStrategy *string                `json:"delivery_strategy"`
-		MetaTitle        *string                `json:"meta_title"`
-		MetaDescription  *string                `json:"meta_description"`
-		OgImageURL       *string                `json:"og_image_url"`
-		ImageURL         *string                `json:"image_url"`
-		IconURL          *string                `json:"icon_url"`
-		IsFlashSale      *bool                  `json:"is_flash_sale"`
-		FlashSalePriceToman *int64              `json:"flash_sale_price_toman"`
-		FlashSaleStock   *int                   `json:"flash_sale_stock"`
-		FlashSaleSold    *int                   `json:"flash_sale_sold"`
-		FlashSaleEndAt   *string                `json:"flash_sale_end_at"`
-		BadgesJSON       *string                `json:"badges_json"`
-		RatingAverage    *float64               `json:"rating_average"`
-		IsBestSeller     *bool                  `json:"is_best_seller"`
-		IsFeatured       *bool                  `json:"is_featured"`
-		PlansJSON        *string                `json:"plans_json"`
-		ComparisonJSON   *string                `json:"comparison_json"`
-		GuideJSON        *string                `json:"guide_json"`
-		FaqJSON          *string                `json:"faq_json"`
-		FeaturesJSON     *string                `json:"features_json"`
-	}
+	var req types.AdminUpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		result.ParamErrorResult(c, err)
 		return
 	}
 
-	if req.Title != nil {
-		existing.Title = *req.Title
+	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
+	updated, err := l.UpdateProduct(prodID, &req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_PRODUCT", "product", updated.ID.String(), fmt.Sprintf("ویرایش محصول: %s (%s)", updated.TitleFA, updated.Slug), updated, c.ClientIP(), c.Request.UserAgent())
 	}
-	if req.TitleFA != nil {
-		existing.TitleFA = *req.TitleFA
-	}
-	if req.Slug != nil && *req.Slug != "" {
-		existing.Slug = *req.Slug
-	}
-	if req.Description != nil {
-		existing.Description = *req.Description
-	}
-	if req.Category != nil {
-		existing.Category = *req.Category
-	}
-	if req.DeliveryType != nil {
-		existing.DeliveryType = *req.DeliveryType
-	}
-	if req.SLAMinMinutes != nil {
-		existing.SLAMinMinutes = *req.SLAMinMinutes
-	}
-	if req.SLAMaxMinutes != nil {
-		existing.SLAMaxMinutes = *req.SLAMaxMinutes
-	}
-	if req.SLADisplayText != nil {
-		existing.SLADisplayText = *req.SLADisplayText
-	}
-	if req.OperatingHours != nil {
-		existing.OperatingHours = *req.OperatingHours
-	}
-	if req.BaseCostUSD != nil {
-		existing.BaseCostUSD = *req.BaseCostUSD
-	}
-	if req.PriceToman != nil {
-		existing.PriceToman = *req.PriceToman
-	}
-	if req.IsActive != nil {
-		existing.IsActive = *req.IsActive
-	}
-	if req.Instructions != nil {
-		existing.Instructions = *req.Instructions
-	}
-	if req.GroupTag != nil {
-		existing.GroupTag = *req.GroupTag
-	}
-	if req.GroupTitleFA != nil {
-		existing.GroupTitleFA = *req.GroupTitleFA
-	}
-	if req.DeliveryStrategy != nil {
-		existing.DeliveryStrategy = *req.DeliveryStrategy
-	}
-	if req.MetaTitle != nil {
-		existing.MetaTitle = *req.MetaTitle
-	}
-	if req.MetaDescription != nil {
-		existing.MetaDescription = *req.MetaDescription
-	}
-	if req.OgImageURL != nil {
-		existing.OgImageURL = *req.OgImageURL
-	}
-	if req.ImageURL != nil {
-		existing.ImageURL = *req.ImageURL
-	}
-	if req.IconURL != nil {
-		existing.IconURL = *req.IconURL
-	}
-	if req.IsFlashSale != nil {
-		existing.IsFlashSale = *req.IsFlashSale
-	}
-	if req.FlashSalePriceToman != nil {
-		existing.FlashSalePriceToman = *req.FlashSalePriceToman
-	}
-	if req.FlashSaleStock != nil {
-		existing.FlashSaleStock = *req.FlashSaleStock
-	}
-	if req.FlashSaleSold != nil {
-		existing.FlashSaleSold = *req.FlashSaleSold
-	}
-	if req.FlashSaleEndAt != nil {
-		if *req.FlashSaleEndAt != "" {
-			if t, err := time.Parse(time.RFC3339, *req.FlashSaleEndAt); err == nil {
-				existing.FlashSaleEndAt = &t
-			} else if t, err := time.Parse("2006-01-02T15:04", *req.FlashSaleEndAt); err == nil {
-				existing.FlashSaleEndAt = &t
-			} else if t, err := time.Parse("2006-01-02", *req.FlashSaleEndAt); err == nil {
-				existing.FlashSaleEndAt = &t
-			}
-		} else {
-			existing.FlashSaleEndAt = nil
-		}
-	}
-	if req.BadgesJSON != nil {
-		existing.BadgesJSON = *req.BadgesJSON
-	}
-	if req.RatingAverage != nil {
-		existing.RatingAverage = *req.RatingAverage
-	}
-	if req.IsBestSeller != nil {
-		existing.IsBestSeller = *req.IsBestSeller
-	}
-	if req.IsFeatured != nil {
-		existing.IsFeatured = *req.IsFeatured
-	}
-	if req.PlansJSON != nil {
-		existing.PlansJSON = *req.PlansJSON
-	}
-	if req.ComparisonJSON != nil {
-		existing.ComparisonJSON = *req.ComparisonJSON
-	}
-	if req.GuideJSON != nil {
-		existing.GuideJSON = *req.GuideJSON
-	}
-	if req.FaqJSON != nil {
-		existing.FaqJSON = *req.FaqJSON
-	}
-	if req.FeaturesJSON != nil {
-		existing.FeaturesJSON = *req.FeaturesJSON
-	}
-
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Save(&existing).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
-		return
-	}
-
-	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_PRODUCT", "product", existing.ID.String(), fmt.Sprintf("ویرایش محصول: %s (%s)", existing.TitleFA, existing.Slug), existing, c.ClientIP(), c.Request.UserAgent())
-
-	result.HttpResult(c, existing, nil)
+	result.HttpResult(c, updated, err)
 }
 
 func (h *AdminHandler) DeleteProduct(c *gin.Context) {
@@ -438,20 +245,12 @@ func (h *AdminHandler) DeleteProduct(c *gin.Context) {
 		return
 	}
 
-	var existing model.Product
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&existing, "id = ?", prodID).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
-		return
+	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
+	deleted, err := l.DeleteProduct(prodID)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_PRODUCT", "product", prodID.String(), fmt.Sprintf("حذف محصول: %s (%s)", deleted.TitleFA, deleted.Slug), nil, c.ClientIP(), c.Request.UserAgent())
 	}
-
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&existing).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.DatabaseError))
-		return
-	}
-
-	audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_PRODUCT", "product", prodID.String(), fmt.Sprintf("حذف محصول: %s (%s)", existing.TitleFA, existing.Slug), nil, c.ClientIP(), c.Request.UserAgent())
-
-	result.HttpResult(c, gin.H{"deleted": true, "id": prodID.String()}, nil)
+	result.HttpResult(c, gin.H{"deleted": true, "id": prodID.String()}, err)
 }
 
 func (h *AdminHandler) GetProduct(c *gin.Context) {
@@ -462,22 +261,9 @@ func (h *AdminHandler) GetProduct(c *gin.Context) {
 		return
 	}
 
-	var p model.Product
-	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&p, "id = ?", prodID).Error; err != nil {
-		result.HttpResult(c, nil, xerr.NewErrCode(xerr.ProductNotFound))
-		return
-	}
-
-	var stock int64
-	if p.DeliveryType == model.DeliveryInstant {
-		h.svcCtx.DB.WithContext(c.Request.Context()).
-			Model(&model.InventoryItem{}).
-			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
-			Count(&stock)
-	}
-	p.AvailableStock = stock
-
-	result.HttpResult(c, p, nil)
+	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
+	p, err := l.GetProduct(prodID)
+	result.HttpResult(c, p, err)
 }
 
 func (h *AdminHandler) GetVirtualNumberSettings(c *gin.Context) {
@@ -791,7 +577,7 @@ func (h *AdminHandler) ToggleCoupon(c *gin.Context) {
 	l := admin.NewCouponAdminLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.ToggleCoupon(id)
 	if err == nil {
-		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "TOGGLE_COUPON", "coupon", id, fmt.Sprintf("تغییر وضعیت فعال‌بودن کوپن (%s)", id), nil, c.ClientIP(), c.Request.UserAgent())
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "TOGGLE_COUPON", "coupon", id, fmt.Sprintf("تغییر وضعیت فعال‌بودن کد تخفیف (%s)", id), nil, c.ClientIP(), c.Request.UserAgent())
 	}
 	result.HttpResult(c, resp, err)
 }

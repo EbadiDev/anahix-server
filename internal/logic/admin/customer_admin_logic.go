@@ -68,6 +68,16 @@ func (l *CustomerAdminLogic) ListCustomers(req *types.AdminListCustomersRequest)
 		query = query.Where("balance_toman > 0")
 	}
 
+	// Filter by referral earnings
+	if req.HasReferral != nil && *req.HasReferral {
+		query = query.Where("referral_balance_toman > 0")
+	}
+
+	// Filter by completed profile
+	if req.ProfileCompleted != nil && *req.ProfileCompleted {
+		query = query.Where("full_name != '' AND full_name IS NOT NULL AND email != '' AND email IS NOT NULL")
+	}
+
 	// Filter by user tier
 	if req.Tier != "" && req.Tier != "all" {
 		query = query.Where("tier = ?", req.Tier)
@@ -108,6 +118,10 @@ func (l *CustomerAdminLogic) ListCustomers(req *types.AdminListCustomersRequest)
 		orderClause = fmt.Sprintf("last_login_at %s NULLS LAST", sortOrder)
 	case "balance":
 		orderClause = fmt.Sprintf("balance_toman %s", sortOrder)
+	case "referral_balance":
+		orderClause = fmt.Sprintf("referral_balance_toman %s", sortOrder)
+	case "profile_completed":
+		orderClause = fmt.Sprintf("CASE WHEN (full_name != '' AND full_name IS NOT NULL AND email != '' AND email IS NOT NULL) THEN 1 ELSE 0 END %s, created_at DESC", sortOrder)
 	case "created_at":
 		orderClause = fmt.Sprintf("created_at %s", sortOrder)
 	default:
@@ -179,6 +193,7 @@ func (l *CustomerAdminLogic) ListCustomers(req *types.AdminListCustomersRequest)
 		items = append(items, types.AdminCustomerListItem{
 			ID:                   c.ID.String(),
 			Phone:                c.Phone,
+			AvatarURL:            c.AvatarURL,
 			FirstName:            c.FirstName,
 			LastName:             c.LastName,
 			FullName:             fullName,
@@ -371,6 +386,7 @@ func (l *CustomerAdminLogic) GetCustomer360(customerIDStr string) (*types.AdminC
 	customerItem := types.AdminCustomerListItem{
 		ID:                   customer.ID.String(),
 		Phone:                customer.Phone,
+		AvatarURL:            customer.AvatarURL,
 		FirstName:            customer.FirstName,
 		LastName:             customer.LastName,
 		FullName:             fullName,
@@ -510,6 +526,7 @@ func (l *CustomerAdminLogic) AdjustWallet(customerIDStr string, req *types.Admin
 	return &types.AdminCustomerListItem{
 		ID:                   updatedCustomer.ID.String(),
 		Phone:                updatedCustomer.Phone,
+		AvatarURL:            updatedCustomer.AvatarURL,
 		FirstName:            updatedCustomer.FirstName,
 		LastName:             updatedCustomer.LastName,
 		FullName:             fullName,
@@ -592,6 +609,7 @@ func (l *CustomerAdminLogic) UpdateCustomer(customerIDStr string, req *types.Adm
 	return &types.AdminCustomerListItem{
 		ID:                   customer.ID.String(),
 		Phone:                customer.Phone,
+		AvatarURL:            customer.AvatarURL,
 		FirstName:            customer.FirstName,
 		LastName:             customer.LastName,
 		FullName:             fullName,

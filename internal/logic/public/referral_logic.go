@@ -42,12 +42,6 @@ func (l *ReferralLogic) GetReferralStats(customerPhone string) (*types.ReferralS
 		}
 	}
 
-	if systemStatus == "disabled" {
-		return &types.ReferralStatsResponse{
-			SystemStatus: "disabled",
-		}, nil
-	}
-
 	// 2. Dynamic commission rate
 	commissionRate := 10.0
 	var rateSetting model.SystemSetting
@@ -57,9 +51,49 @@ func (l *ReferralLogic) GetReferralStats(customerPhone string) (*types.ReferralS
 		}
 	}
 
+	// 3. Dynamic bonus and min withdraw
+	var bonusAmount int64 = 20000
+	var bonusSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "referral_bonus_amount").First(&bonusSetting).Error; err == nil {
+		if bVal, err := strconv.ParseInt(strings.TrimSpace(bonusSetting.Value), 10, 64); err == nil && bVal >= 0 {
+			bonusAmount = bVal
+		}
+	}
+
+	var minWithdraw int64 = 50000
+	var minWithdrawSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("category = ? AND key = ?", "loyalty", "referral_min_withdraw").First(&minWithdrawSetting).Error; err == nil {
+		if mwVal, err := strconv.ParseInt(strings.TrimSpace(minWithdrawSetting.Value), 10, 64); err == nil && mwVal >= 0 {
+			minWithdraw = mwVal
+		}
+	}
+
+	if systemStatus == "disabled" {
+		return &types.ReferralStatsResponse{
+			SystemStatus:          "disabled",
+			CommissionRatePercent: commissionRate,
+			BonusAmountToman:      bonusAmount,
+			MinWithdrawToman:      minWithdraw,
+		}, nil
+	}
+
+	if customerPhone == "" {
+		return &types.ReferralStatsResponse{
+			SystemStatus:          systemStatus,
+			CommissionRatePercent: commissionRate,
+			BonusAmountToman:      bonusAmount,
+			MinWithdrawToman:      minWithdraw,
+		}, nil
+	}
+
 	var customer model.Customer
 	if err := l.svcCtx.DB.WithContext(l.ctx).Where("phone = ?", customerPhone).First(&customer).Error; err != nil {
-		return nil, xerr.NewErrMsg("کاربر یافت نشد")
+		return &types.ReferralStatsResponse{
+			SystemStatus:          systemStatus,
+			CommissionRatePercent: commissionRate,
+			BonusAmountToman:      bonusAmount,
+			MinWithdrawToman:      minWithdraw,
+		}, nil
 	}
 
 	// Count total referred users
@@ -95,6 +129,8 @@ func (l *ReferralLogic) GetReferralStats(customerPhone string) (*types.ReferralS
 		SuccessfulOrders:            int(successfulOrders),
 		TotalCommissionToman:        totalCommissionToman,
 		WithdrawableCommissionToman: customer.ReferralBalanceToman,
+		BonusAmountToman:            bonusAmount,
+		MinWithdrawToman:            minWithdraw,
 	}, nil
 }
 

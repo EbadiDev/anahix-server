@@ -253,6 +253,10 @@ func (l *LoyaltyAdminLogic) GetLoyaltySettings() (map[string]string, error) {
 		"loyalty_enabled":            "true",
 		"loyalty_calculation_period": "monthly_30d",
 		"loyalty_auto_upgrade":       "true",
+		"referral_enabled":           "active",
+		"referral_commission_rate":   "10",
+		"referral_bonus_amount":      "20000",
+		"referral_min_withdraw":      "50000",
 	}
 
 	for _, s := range settings {

@@ -120,11 +120,6 @@ func (h *PublicHandler) GetReferralStats(c *gin.Context) {
 		phone = c.Query("phone")
 	}
 
-	if phone == "" {
-		result.ParamErrorResult(c, xerr.NewErrMsg("شماره همراه معتبر نیست"))
-		return
-	}
-
 	l := public.NewReferralLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.GetReferralStats(phone)
 	result.HttpResult(c, resp, err)

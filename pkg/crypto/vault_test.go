@@ -50,7 +50,13 @@ func TestVaultTamperDetection(t *testing.T) {
 	}
 
 	// Tamper with base64 ciphertext
-	tampered := "A" + encrypted[1:]
+	b := []byte(encrypted)
+	if b[5] == 'A' {
+		b[5] = 'Z'
+	} else {
+		b[5] = 'A'
+	}
+	tampered := string(b)
 	_, err = vault.Decrypt(tampered)
 	if err == nil {
 		t.Fatal("Expected error on tampered ciphertext, but got nil")

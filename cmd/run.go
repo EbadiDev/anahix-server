@@ -123,15 +123,41 @@ func seedInitialData(db *gorm.DB) {
 		log.Println("🌱 Created initial admin user: 'admin' (password: 'admin123456')")
 	}
 
-	// Ensure system owner email and phone are granted admin status and password is set to Yasin@2026
+	// Ensure system owner email and phone are granted admin status and profile is fully seeded with avatar
 	var yasinCustomer model.Customer
-	if err := db.Where("LOWER(email) = LOWER(?) OR phone = ?", "yasinnasiry18@gmail.com", "09187456325").First(&yasinCustomer).Error; err == nil {
+	if err := db.Where("LOWER(email) = LOWER(?) OR phone = ?", "yasinnasiry18@gmail.com", "09187456325").First(&yasinCustomer).Error; err != nil {
+		yasinCustomer = model.Customer{
+			ID:            uuid.New(),
+			Phone:         "09187456325",
+			Email:         "yasinnasiry18@gmail.com",
+			FirstName:     "محمد یاسین",
+			LastName:      "نصیری",
+			FullName:      "محمد یاسین نصیری",
+			AvatarURL:     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+			IsAdmin:       true,
+			EmailVerified: true,
+			PhoneVerified: true,
+			IsActive:      true,
+			Tier:          "vip",
+			ReferralCode:  "YASIN2026",
+			BalanceToman:  5000000,
+		}
+		_ = yasinCustomer.SetPassword("Yasin@2026")
+		db.Create(&yasinCustomer)
+		log.Println("🌱 Created initial customer profile for 'محمد یاسین نصیری' with avatar")
+	} else {
+		yasinCustomer.AvatarURL = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+		if yasinCustomer.FullName == "" || yasinCustomer.FullName == "کاربر بدون نام" {
+			yasinCustomer.FullName = "محمد یاسین نصیری"
+			yasinCustomer.FirstName = "محمد یاسین"
+			yasinCustomer.LastName = "نصیری"
+		}
 		_ = yasinCustomer.SetPassword("Yasin@2026")
 		yasinCustomer.IsAdmin = true
 		yasinCustomer.EmailVerified = true
 		yasinCustomer.IsActive = true
 		db.Save(&yasinCustomer)
-		log.Println("🔑 Verified and updated password for 'yasinnasiry18@gmail.com' to 'Yasin@2026'")
+		log.Println("🔑 Verified and updated profile with avatar for 'محمد یاسین نصیری'")
 	}
 	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
 
@@ -422,7 +448,7 @@ func seedInitialData(db *gorm.DB) {
 		"external_provider": "third_party_api",
 	})
 
-	// Seed Coupons if empty
+	// Seed Promotional Discount Codes if empty
 	var couponCount int64
 	db.Model(&model.Coupon{}).Count(&couponCount)
 	if couponCount == 0 {
@@ -430,6 +456,7 @@ func seedInitialData(db *gorm.DB) {
 			{
 				ID:                  uuid.New(),
 				Code:                "WELCOME10",
+				Label:               "۱۰٪ تخفیف اولین خرید",
 				DiscountType:        model.DiscountTypePercentage,
 				DiscountValue:       10, // 10%
 				MinOrderAmountToman: 100000,
@@ -437,22 +464,26 @@ func seedInitialData(db *gorm.DB) {
 				PerUserLimit:        1,
 				MaxUsage:            1000,
 				Category:            "all",
+				ShowInCart:          true,
 				IsActive:            true,
 			},
 			{
 				ID:                  uuid.New(),
 				Code:                "ANAHIX50",
+				Label:               "۵۰ هزار تومان تخفیف",
 				DiscountType:        model.DiscountTypeFixed,
 				DiscountValue:       50000, // 50,000 Toman
 				MinOrderAmountToman: 300000,
 				PerUserLimit:        1,
 				MaxUsage:            500,
 				Category:            "all",
+				ShowInCart:          true,
 				IsActive:            true,
 			},
 			{
 				ID:                  uuid.New(),
 				Code:                "TELEGRAM20",
+				Label:               "۲۰٪ تخفیف شماره مجازی",
 				DiscountType:        model.DiscountTypePercentage,
 				DiscountValue:       20, // 20%
 				MinOrderAmountToman: 50000,
@@ -460,13 +491,49 @@ func seedInitialData(db *gorm.DB) {
 				PerUserLimit:        1,
 				MaxUsage:            2000,
 				Category:            "virtual_number",
+				ShowInCart:          true,
+				IsActive:            true,
+			},
+			{
+				ID:                  uuid.New(),
+				Code:                "NOROOZ1405",
+				Label:               "۲۵٪ تخفیف جشنواره نوروز",
+				DiscountType:        model.DiscountTypePercentage,
+				DiscountValue:       25, // 25%
+				MinOrderAmountToman: 50000,
+				MaxDiscountToman:    300000,
+				PerUserLimit:        1,
+				MaxUsage:            1000,
+				Category:            "all",
+				ShowInCart:          true,
 				IsActive:            true,
 			},
 		}
 		for _, c := range coupons {
 			db.Create(&c)
 		}
-		log.Println("🌱 Seeded default promotional coupons ('WELCOME10', 'ANAHIX50', 'TELEGRAM20')")
+		log.Println("🌱 Seeded default promotional coupons ('WELCOME10', 'ANAHIX50', 'TELEGRAM20', 'NOROOZ1405')")
+	} else {
+		// Ensure NOROOZ1405 is present and show_in_cart is true
+		var noroozCount int64
+		db.Model(&model.Coupon{}).Where("code = ?", "NOROOZ1405").Count(&noroozCount)
+		if noroozCount == 0 {
+			norooz := model.Coupon{
+				ID:                  uuid.New(),
+				Code:                "NOROOZ1405",
+				Label:               "۲۵٪ تخفیف جشنواره نوروز",
+				DiscountType:        model.DiscountTypePercentage,
+				DiscountValue:       25,
+				MinOrderAmountToman: 50000,
+				MaxDiscountToman:    300000,
+				PerUserLimit:        1,
+				MaxUsage:            1000,
+				Category:            "all",
+				ShowInCart:          true,
+				IsActive:            true,
+			}
+			db.Create(&norooz)
+		}
 	}
 
 	// Seed Official Tax Billing & Corporate Seller Configurations

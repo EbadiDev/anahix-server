@@ -643,7 +643,7 @@ type UpdateCouponRequest struct {
 	StartsAt            *time.Time `json:"starts_at"`
 	ExpiresAt           *time.Time `json:"expires_at"`
 	ShowInCart          *bool      `json:"show_in_cart"`
-	IsActive            bool       `json:"is_active"`
+	IsActive            *bool      `json:"is_active"`
 }
 
 // Referral DTOs
@@ -657,6 +657,8 @@ type ReferralStatsResponse struct {
 	SuccessfulOrders            int     `json:"successful_orders"`
 	TotalCommissionToman        int64   `json:"total_commission_toman"`
 	WithdrawableCommissionToman int64   `json:"withdrawable_commission_toman"`
+	BonusAmountToman            int64   `json:"bonus_amount_toman"`
+	MinWithdrawToman            int64   `json:"min_withdraw_toman"`
 }
 
 type TransferCommissionResponse struct {
@@ -1113,6 +1115,7 @@ type UpdateBillingSettingsRequest struct {
 type AdminCustomerListItem struct {
 	ID                   string     `json:"id"`
 	Phone                string     `json:"phone"`
+	AvatarURL            string     `json:"avatar_url,omitempty"`
 	FirstName            string     `json:"first_name,omitempty"`
 	LastName             string     `json:"last_name,omitempty"`
 	FullName             string     `json:"full_name"`
@@ -1135,14 +1138,16 @@ type AdminCustomerListItem struct {
 }
 
 type AdminListCustomersRequest struct {
-	Search    string `form:"search" json:"search"`
-	Status    string `form:"status" json:"status"` // "all", "active", "blocked"
-	HasBalance *bool `form:"has_balance" json:"has_balance"`
-	Tier      string `form:"tier" json:"tier"`     // "all", "standard", "colleague", "vip"
-	SortBy    string `form:"sort_by" json:"sort_by"` // "created_at", "last_login_at", "total_spent", "balance"
-	SortOrder string `form:"sort_order" json:"sort_order"` // "desc", "asc"
-	Page      int    `form:"page,default=1" json:"page"`
-	PageSize  int    `form:"page_size,default=15" json:"page_size"`
+	Search           string `form:"search" json:"search"`
+	Status           string `form:"status" json:"status"` // "all", "active", "blocked"
+	HasBalance       *bool  `form:"has_balance" json:"has_balance"`
+	HasReferral      *bool  `form:"has_referral" json:"has_referral"`
+	ProfileCompleted *bool  `form:"profile_completed" json:"profile_completed"`
+	Tier             string `form:"tier" json:"tier"`     // "all", "standard", "colleague", "vip"
+	SortBy           string `form:"sort_by" json:"sort_by"` // "created_at", "last_login_at", "total_spent", "balance", "referral_balance"
+	SortOrder        string `form:"sort_order" json:"sort_order"` // "desc", "asc"
+	Page             int    `form:"page,default=1" json:"page"`
+	PageSize         int    `form:"page_size,default=15" json:"page_size"`
 }
 
 type AdminListCustomersResponse struct {
@@ -1226,6 +1231,45 @@ type AdminUpdateOrderStatusRequest struct {
 	Status         model.OrderStatus `json:"status" binding:"required"`
 	OperatorNotes  string            `json:"operator_notes"`
 	RefundToWallet bool              `json:"refund_to_wallet"`
+}
+
+type AdminUpdateProductRequest struct {
+	Title               *string                `json:"title"`
+	TitleFA             *string                `json:"title_fa"`
+	Slug                *string                `json:"slug"`
+	Description         *string                `json:"description"`
+	Category            *model.ProductCategory `json:"category"`
+	DeliveryType        *model.DeliveryType    `json:"delivery_type"`
+	SLAMinMinutes       *int                   `json:"sla_min_minutes"`
+	SLAMaxMinutes       *int                   `json:"sla_max_minutes"`
+	SLADisplayText      *string                `json:"sla_display_text"`
+	OperatingHours      *string                `json:"operating_hours"`
+	BaseCostUSD         *float64               `json:"base_cost_usd"`
+	PriceToman          *int64                 `json:"price_toman"`
+	IsActive            *bool                  `json:"is_active"`
+	Instructions        *string                `json:"instructions"`
+	GroupTag            *string                `json:"group_tag"`
+	GroupTitleFA        *string                `json:"group_title_fa"`
+	DeliveryStrategy    *string                `json:"delivery_strategy"`
+	MetaTitle           *string                `json:"meta_title"`
+	MetaDescription     *string                `json:"meta_description"`
+	OgImageURL          *string                `json:"og_image_url"`
+	ImageURL            *string                `json:"image_url"`
+	IconURL             *string                `json:"icon_url"`
+	IsFlashSale         *bool                  `json:"is_flash_sale"`
+	FlashSalePriceToman *int64                 `json:"flash_sale_price_toman"`
+	FlashSaleStock      *int                   `json:"flash_sale_stock"`
+	FlashSaleSold       *int                   `json:"flash_sale_sold"`
+	FlashSaleEndAt      *string                `json:"flash_sale_end_at"`
+	BadgesJSON          *string                `json:"badges_json"`
+	RatingAverage       *float64               `json:"rating_average"`
+	IsBestSeller        *bool                  `json:"is_best_seller"`
+	IsFeatured          *bool                  `json:"is_featured"`
+	PlansJSON           *string                `json:"plans_json"`
+	ComparisonJSON      *string                `json:"comparison_json"`
+	GuideJSON           *string                `json:"guide_json"`
+	FaqJSON             *string                `json:"faq_json"`
+	FeaturesJSON        *string                `json:"features_json"`
 }
 
 
