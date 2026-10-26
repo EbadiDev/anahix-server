@@ -136,6 +136,9 @@ type HelpGuide struct {
 	Icon                string         `gorm:"size:100;default:'HelpCircle'" json:"icon"`
 	Difficulty          string         `gorm:"size:50;default:'ساده'" json:"difficulty"` // "ساده", "متوسط", "پیشرفته"
 	ServiceTarget       string         `gorm:"size:60;index;default:'general'" json:"service_target"` // "gemini", "chatgpt", "claude", "virtual_number", "general"
+	AuthorName          string         `gorm:"size:120;default:'تیم پشتیبانی و فنی آناهیکس'" json:"author_name"`
+	AuthorRole          string         `gorm:"size:120;default:'کارشناس رفع تحریم و شبکه'" json:"author_role"`
+	AuthorAvatar        string         `gorm:"size:512" json:"author_avatar"`
 	ReadingTimeMinutes  int            `gorm:"default:3" json:"reading_time_minutes"`
 	ViewCount           int64          `gorm:"default:0" json:"view_count"`
 	HelpfulYes          int64          `gorm:"default:0" json:"helpful_yes"`

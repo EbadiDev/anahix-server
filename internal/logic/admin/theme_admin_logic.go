@@ -190,7 +190,22 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.FivesimApiKey = s.Value
 			}
+		case "ticket_sms_mode":
+			if s.Value != "" {
+				res.TicketSMSMode = s.Value
+			}
+		case "ticket_email_mode":
+			if s.Value != "" {
+				res.TicketEmailMode = s.Value
+			}
 		}
+	}
+
+	if res.TicketSMSMode == "" {
+		res.TicketSMSMode = "default_on"
+	}
+	if res.TicketEmailMode == "" {
+		res.TicketEmailMode = "default_on"
 	}
 
 	return res, nil
@@ -428,6 +443,16 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 	if req.FivesimApiKey != "" {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
 			Category: "fivesim", Key: "fivesim_api_key", Value: req.FivesimApiKey, Type: "string", Desc: "کلید API سامانه شماره مجازی ۵SIM",
+		})
+	}
+	if req.TicketSMSMode != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "ticket_sms_mode", Value: req.TicketSMSMode, Type: "string", Desc: "حالت پیش‌فرض اطلاع‌رسانی پیامک تیکت‌ها",
+		})
+	}
+	if req.TicketEmailMode != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "ticket_email_mode", Value: req.TicketEmailMode, Type: "string", Desc: "حالت پیش‌فرض اطلاع‌رسانی ایمیل تیکت‌ها",
 		})
 	}
 

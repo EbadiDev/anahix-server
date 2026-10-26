@@ -585,6 +585,16 @@ func (l *CustomerAdminLogic) UpdateCustomer(customerIDStr string, req *types.Adm
 		customer.Email = strings.TrimSpace(*req.Email)
 		changes["email"] = customer.Email
 	}
+	if req.NewPassword != nil && strings.TrimSpace(*req.NewPassword) != "" {
+		newPass := strings.TrimSpace(*req.NewPassword)
+		if len(newPass) < 6 {
+			return nil, xerr.NewErrMsg("رمز عبور جدید باید حداقل ۶ کاراکتر باشد")
+		}
+		if err := customer.SetPassword(newPass); err != nil {
+			return nil, xerr.NewErrMsg("خطا در هش‌گذاری رمز عبور جدید")
+		}
+		changes["password_changed"] = true
+	}
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&customer).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.DatabaseError)

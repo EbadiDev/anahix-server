@@ -104,11 +104,38 @@ func (l *ReviewAdminLogic) ListReviews(req *types.AdminReviewListRequest) (*type
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
+	custMap := make(map[uuid.UUID]model.Customer)
+	var custIDs []uuid.UUID
+	for _, r := range reviews {
+		if r.CustomerID != nil && *r.CustomerID != uuid.Nil {
+			custIDs = append(custIDs, *r.CustomerID)
+		}
+	}
+	if len(custIDs) > 0 {
+		var customers []model.Customer
+		_ = l.svcCtx.DB.WithContext(l.ctx).
+			Select("id, avatar_url, email").
+			Where("id IN ?", custIDs).
+			Find(&customers).Error
+		for _, c := range customers {
+			custMap[c.ID] = c
+		}
+	}
+
 	var dtos []types.ReviewItemDTO
 	for _, r := range reviews {
 		var oID string
 		if r.OrderID != nil {
 			oID = r.OrderID.String()
+		}
+
+		var avatar string
+		var email string
+		if r.CustomerID != nil {
+			if c, ok := custMap[*r.CustomerID]; ok {
+				avatar = c.AvatarURL
+				email = c.Email
+			}
 		}
 
 		dtos = append(dtos, types.ReviewItemDTO{
@@ -120,6 +147,8 @@ func (l *ReviewAdminLogic) ListReviews(req *types.AdminReviewListRequest) (*type
 			OrderNumber:      r.OrderNumber,
 			CustomerName:     r.CustomerName,
 			CustomerPhone:    r.CustomerPhone,
+			CustomerAvatar:   avatar,
+			CustomerEmail:    email,
 			Rating:           r.Rating,
 			Comment:          r.Comment,
 			ExperienceTags:   r.GetTagsSlice(),

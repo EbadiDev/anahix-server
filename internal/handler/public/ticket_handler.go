@@ -139,6 +139,31 @@ func (h *TicketHandler) RateTicket(c *gin.Context) {
 	result.HttpResult(c, gin.H{"rated": true}, err)
 }
 
+// UpdateNotificationSettings updates SMS/Email notification preference
+func (h *TicketHandler) UpdateNotificationSettings(c *gin.Context) {
+	customerID := c.GetString("customer_id")
+	if customerID == "" {
+		result.ParamErrorResult(c, xerr.NewErrCode(xerr.Unauthorized))
+		return
+	}
+
+	ticketID := c.Param("id")
+	if ticketID == "" {
+		result.ParamErrorResult(c, errors.New("شناسه تیکت مشخص نشده است"))
+		return
+	}
+
+	var req types.UpdateTicketNotificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewTicketLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateNotificationSettings(ticketID, &req, customerID)
+	result.HttpResult(c, gin.H{"updated": true}, err)
+}
+
 // UploadAttachment handles file upload for ticket attachments
 func (h *TicketHandler) UploadAttachment(c *gin.Context) {
 	file, err := c.FormFile("file")

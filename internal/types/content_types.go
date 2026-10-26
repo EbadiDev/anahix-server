@@ -166,6 +166,9 @@ type HelpGuideListItemDTO struct {
 	Icon                string     `json:"icon"`
 	Difficulty          string     `json:"difficulty"`
 	ServiceTarget       string     `json:"service_target"`
+	AuthorName          string     `json:"author_name"`
+	AuthorRole          string     `json:"author_role"`
+	AuthorAvatar        string     `json:"author_avatar"`
 	ReadingTimeMinutes  int        `json:"reading_time_minutes"`
 	ViewCount           int64      `json:"view_count"`
 	HelpfulYes          int64      `json:"helpful_yes"`
@@ -189,6 +192,9 @@ type HelpGuideDetailDTO struct {
 	Icon                string                `json:"icon"`
 	Difficulty          string                `json:"difficulty"`
 	ServiceTarget       string                `json:"service_target"`
+	AuthorName          string                `json:"author_name"`
+	AuthorRole          string                `json:"author_role"`
+	AuthorAvatar        string                `json:"author_avatar"`
 	ReadingTimeMinutes  int                   `json:"reading_time_minutes"`
 	ViewCount           int64                 `json:"view_count"`
 	HelpfulYes          int64                 `json:"helpful_yes"`
@@ -219,6 +225,9 @@ type CreateHelpGuideRequest struct {
 	Icon                string `json:"icon"`
 	Difficulty          string `json:"difficulty"`
 	ServiceTarget       string `json:"service_target"`
+	AuthorName          string `json:"author_name"`
+	AuthorRole          string `json:"author_role"`
+	AuthorAvatar        string `json:"author_avatar"`
 	ReadingTimeMinutes  int    `json:"reading_time_minutes"`
 	SortOrder           int    `json:"sort_order"`
 	IsFeatured          bool   `json:"is_featured"`
@@ -243,6 +252,9 @@ type UpdateHelpGuideRequest struct {
 	Icon                string `json:"icon"`
 	Difficulty          string `json:"difficulty"`
 	ServiceTarget       string `json:"service_target"`
+	AuthorName          string `json:"author_name"`
+	AuthorRole          string `json:"author_role"`
+	AuthorAvatar        string `json:"author_avatar"`
 	ReadingTimeMinutes  int    `json:"reading_time_minutes"`
 	SortOrder           int    `json:"sort_order"`
 	IsFeatured          *bool  `json:"is_featured"`
@@ -259,13 +271,16 @@ type UpdateHelpGuideRequest struct {
 
 // Comments & Feedback DTOs
 type ArticleCommentDTO struct {
-	ID         string    `json:"id"`
-	ArticleID  string    `json:"article_id"`
-	AuthorName string    `json:"author_name"`
-	Content    string    `json:"content"`
-	Status     string    `json:"status"`
-	AdminReply string    `json:"admin_reply,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	ArticleID    string    `json:"article_id"`
+	ArticleTitle string    `json:"article_title,omitempty"`
+	ArticleSlug  string    `json:"article_slug,omitempty"`
+	AuthorName   string    `json:"author_name"`
+	Email        string    `json:"email,omitempty"`
+	Content      string    `json:"content"`
+	Status       string    `json:"status"`
+	AdminReply   string    `json:"admin_reply,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type SubmitArticleCommentRequest struct {

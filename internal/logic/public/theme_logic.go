@@ -23,7 +23,7 @@ func NewThemeLogic(ctx context.Context, svcCtx *svc.ServiceContext) *ThemeLogic 
 func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 	var settings []model.SystemSetting
 	if err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("category IN ?", []string{"theme", "auth", "checkout", "branding", "seo", "menus"}).
+		Where("category IN ?", []string{"theme", "auth", "checkout", "branding", "seo", "menus", "sms"}).
 		Find(&settings).Error; err != nil {
 		return nil, err
 	}
@@ -47,6 +47,8 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 		CheckoutChannelTitle:          "دریافت فاکتور و لایسنس سفارش:",
 		CheckoutChannelSMSLabel:       "پیامک به موبایل",
 		CheckoutChannelEmailLabel:     "ارسال به ایمیل",
+		TicketSMSMode:                 "default_on",
+		TicketEmailMode:               "default_on",
 	}
 
 	for _, s := range settings {
@@ -170,6 +172,14 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 		case "footer_menu_json":
 			if s.Value != "" {
 				res.FooterMenuJSON = s.Value
+			}
+		case "ticket_sms_mode":
+			if s.Value != "" {
+				res.TicketSMSMode = s.Value
+			}
+		case "ticket_email_mode":
+			if s.Value != "" {
+				res.TicketEmailMode = s.Value
 			}
 		}
 	}

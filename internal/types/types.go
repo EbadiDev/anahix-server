@@ -548,6 +548,7 @@ type SMSSettingsResponse struct {
 	IsSandbox             bool              `json:"is_sandbox"`
 	LiveCredit            float64           `json:"live_credit"`
 	Lines                 []string          `json:"lines"`
+	TicketSMSMode         string            `json:"ticket_sms_mode"`
 }
 
 type UpdateSMSSettingsRequest struct {
@@ -559,6 +560,7 @@ type UpdateSMSSettingsRequest struct {
 	TemplateOrderComplete *string `json:"template_order_complete"`
 	TemplateRenewal       *string `json:"template_renewal"`
 	IsSandbox             *bool   `json:"is_sandbox"`
+	TicketSMSMode         *string `json:"ticket_sms_mode"`
 }
 
 type SendTestSMSRequest struct {
@@ -736,6 +738,8 @@ type ReviewItemDTO struct {
 	OrderNumber      string     `json:"order_number,omitempty"`
 	CustomerName     string     `json:"customer_name"`
 	CustomerPhone    string     `json:"customer_phone,omitempty"` // Masked for public
+	CustomerAvatar   string     `json:"customer_avatar,omitempty"`
+	CustomerEmail    string     `json:"customer_email,omitempty"`
 	Rating           int        `json:"rating"`
 	Comment          string     `json:"comment"`
 	ExperienceTags   []string   `json:"experience_tags"`
@@ -919,6 +923,11 @@ type ReplyTicketRequest struct {
 	NotifyViaEmail *bool                 `json:"notify_via_email"`
 }
 
+type UpdateTicketNotificationRequest struct {
+	NotifyViaSMS   *bool `json:"notify_via_sms"`
+	NotifyViaEmail *bool `json:"notify_via_email"`
+}
+
 type AdminReplyTicketRequest struct {
 	Message        string                `json:"message" binding:"required"`
 	IsInternal     bool                  `json:"is_internal"`
@@ -935,6 +944,7 @@ type AdminUpdateTicketRequest struct {
 	AssignedAdminName *string `json:"assigned_admin_name"`
 	NotifySMS         bool    `json:"notify_sms"`
 	NotifyEmail       bool    `json:"notify_email"`
+	NotifyViaSMS      *bool   `json:"notify_via_sms"`
 }
 
 type AdminTicketListRequest struct {
@@ -973,6 +983,7 @@ type UploadAttachmentResponse struct {
 	FileSize int64  `json:"file_size"`
 	MimeType string `json:"mime_type"`
 	IsImage  bool   `json:"is_image"`
+	IsVideo  bool   `json:"is_video,omitempty"`
 }
 
 // ==========================================
@@ -1214,6 +1225,7 @@ type AdminUpdateCustomerStatusRequest struct {
 	InternalNotes *string `json:"internal_notes"`
 	FullName      *string `json:"full_name"`
 	Email         *string `json:"email"`
+	NewPassword   *string `json:"new_password,omitempty"`
 }
 
 type AdminSendCustomerSMSRequest struct {

@@ -129,8 +129,39 @@ func (l *TicketLogic) CreateTicket(req *types.CreateTicketRequest, customerIDStr
 	}, nil
 }
 
+// AutoCloseExpiredAwaitingUserTickets automatically closes:
+// 1. Tickets awaiting user for > 7 days without response
+// 2. Tickets resolved for > 3 days (72 hours) without customer objection
+func AutoCloseExpiredAwaitingUserTickets(db *gorm.DB) {
+	sevenDaysAgo := time.Now().Add(-7 * 24 * time.Hour)
+	threeDaysAgo := time.Now().Add(-3 * 24 * time.Hour)
+	now := time.Now()
+
+	// 1. Auto-close awaiting_user > 7 days
+	_ = db.Model(&model.Ticket{}).
+		Where("status = ? AND (last_reply_at < ? OR (last_reply_at IS NULL AND updated_at < ?))",
+			model.TicketStatusAwaitingUser, sevenDaysAgo, sevenDaysAgo).
+		Updates(map[string]interface{}{
+			"status":     model.TicketStatusClosed,
+			"closed_at":  &now,
+			"updated_at": now,
+		}).Error
+
+	// 2. Auto-close resolved > 3 days
+	_ = db.Model(&model.Ticket{}).
+		Where("status = ? AND updated_at < ?",
+			model.TicketStatusResolved, threeDaysAgo).
+		Updates(map[string]interface{}{
+			"status":     model.TicketStatusClosed,
+			"closed_at":  &now,
+			"updated_at": now,
+		}).Error
+}
+
 // ListMyTickets returns all tickets submitted by the authenticated customer
 func (l *TicketLogic) ListMyTickets(customerIDStr string) ([]types.TicketItemDTO, error) {
+	AutoCloseExpiredAwaitingUserTickets(l.svcCtx.DB.WithContext(l.ctx))
+
 	custUUID, err := uuid.Parse(customerIDStr)
 	if err != nil {
 		return nil, errors.New("شناسه مشتری نامعتبر است")
@@ -160,6 +191,8 @@ func (l *TicketLogic) ListMyTickets(customerIDStr string) ([]types.TicketItemDTO
 
 // GetTicketDetail retrieves a customer's specific ticket and customer-visible messages
 func (l *TicketLogic) GetTicketDetail(ticketIDStr string, customerIDStr string) (*types.TicketDetailResponse, error) {
+	AutoCloseExpiredAwaitingUserTickets(l.svcCtx.DB.WithContext(l.ctx))
+
 	tUUID, err := uuid.Parse(ticketIDStr)
 	if err != nil {
 		return nil, errors.New("شناسه تیکت نامعتبر است")
@@ -215,6 +248,10 @@ func (l *TicketLogic) ReplyTicket(ticketIDStr string, req *types.ReplyTicketRequ
 		Where("id = ? AND customer_id = ?", tUUID, cUUID).
 		First(&ticket).Error; err != nil {
 		return nil, errors.New("تیکت مورد نظر یافت نشد")
+	}
+
+	if ticket.Status == model.TicketStatusClosed {
+		return nil, errors.New("این تیکت بسته شده است و امکان ارسال پاسخ جدید وجود ندارد. لطفاً در صورت نیاز تیکت جدیدی ایجاد فرمایید")
 	}
 
 	customerName := ticket.CustomerName
@@ -337,6 +374,42 @@ func (l *TicketLogic) RateTicket(ticketIDStr string, req *types.RateTicketReques
 	return nil
 }
 
+// UpdateNotificationSettings updates the SMS/Email notification preference for a ticket
+func (l *TicketLogic) UpdateNotificationSettings(ticketIDStr string, req *types.UpdateTicketNotificationRequest, customerIDStr string) error {
+	tUUID, err := uuid.Parse(ticketIDStr)
+	if err != nil {
+		return errors.New("شناسه تیکت نامعتبر است")
+	}
+	cUUID, err := uuid.Parse(customerIDStr)
+	if err != nil {
+		return errors.New("شناسه مشتری نامعتبر است")
+	}
+
+	updates := map[string]interface{}{}
+	if req.NotifyViaSMS != nil {
+		updates["notify_via_sms"] = *req.NotifyViaSMS
+	}
+	if req.NotifyViaEmail != nil {
+		updates["notify_via_email"] = *req.NotifyViaEmail
+	}
+
+	if len(updates) == 0 {
+		return nil
+	}
+
+	res := l.svcCtx.DB.WithContext(l.ctx).
+		Model(&model.Ticket{}).
+		Where("id = ? AND customer_id = ?", tUUID, cUUID).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errors.New("تیکت یافت نشد")
+	}
+	return nil
+}
+
 // UploadAttachment handles file uploads for tickets
 func (l *TicketLogic) UploadAttachment(fileHeader *multipart.FileHeader) (*types.UploadAttachmentResponse, error) {
 	return upload.SaveTicketAttachment(fileHeader)
@@ -386,12 +459,17 @@ func toTicketMessageDTO(m *model.TicketMessage) types.TicketMessageDTO {
 		atts = []types.TicketAttachmentDTO{}
 	}
 
+	senderName := m.SenderName
+	if m.SenderType != "customer" {
+		senderName = "پشتیبانی آناهیکس"
+	}
+
 	return types.TicketMessageDTO{
 		ID:          m.ID.String(),
 		TicketID:    m.TicketID.String(),
 		SenderType:  m.SenderType,
 		SenderID:    m.SenderID,
-		SenderName:  m.SenderName,
+		SenderName:  senderName,
 		Message:     m.Message,
 		Attachments: atts,
 		IsInternal:  m.IsInternal,

@@ -23,6 +23,6 @@ func (h *UploadHandler) UploadMedia(c *gin.Context) {
 		return
 	}
 
-	resp, err := upload.SaveMediaImage(fileHeader)
+	resp, err := upload.SaveMediaFile(fileHeader)
 	result.HttpResult(c, resp, err)
 }

@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/provider/smsir"
@@ -145,4 +146,53 @@ func TestCompleteTicketFlow(t *testing.T) {
 	assert.Equal(t, string(model.TicketStatusClosed), finalDetail.Ticket.Status)
 	assert.Equal(t, 5, finalDetail.Ticket.SatisfactionRating)
 	assert.Equal(t, "عالی بود، خیلی سریع حل شد", finalDetail.Ticket.SatisfactionComment)
+
+	// 10. Test Auto-Close of Tickets awaiting user for > 7 days
+	eightDaysAgo := time.Now().Add(-8 * 24 * time.Hour)
+	expiredTicket := model.Ticket{
+		ID:            uuid.New(),
+		TicketNumber:  "TK-EXPIRED-7DAYS",
+		CustomerID:    cust.ID,
+		CustomerPhone: cust.Phone,
+		CustomerName:  cust.FullName,
+		Subject:       "تیکت قدیمی در انتظار کاربر",
+		Department:    string(model.DepartmentBilling),
+		Priority:      model.TicketPriorityLow,
+		Status:        model.TicketStatusAwaitingUser,
+		LastReplyAt:   &eightDaysAgo,
+		CreatedAt:     eightDaysAgo,
+		UpdatedAt:     eightDaysAgo,
+	}
+	assert.NoError(t, svcCtx.DB.Create(&expiredTicket).Error)
+
+	// Call AutoClose function
+	public.AutoCloseExpiredAwaitingUserTickets(svcCtx.DB)
+
+	var checkTicket model.Ticket
+	assert.NoError(t, svcCtx.DB.First(&checkTicket, "id = ?", expiredTicket.ID).Error)
+	assert.Equal(t, model.TicketStatusClosed, checkTicket.Status, "Ticket awaiting user for > 7 days must be automatically closed")
+
+	// 11. Test Auto-Close of Tickets resolved for > 3 days
+	fourDaysAgo := time.Now().Add(-4 * 24 * time.Hour)
+	resolvedTicket := model.Ticket{
+		ID:            uuid.New(),
+		TicketNumber:  "TK-RESOLVED-3DAYS",
+		CustomerID:    cust.ID,
+		CustomerPhone: cust.Phone,
+		CustomerName:  cust.FullName,
+		Subject:       "تیکت حل شده قدیمی",
+		Department:    string(model.DepartmentBilling),
+		Priority:      model.TicketPriorityLow,
+		Status:        model.TicketStatusResolved,
+		LastReplyAt:   &fourDaysAgo,
+		CreatedAt:     fourDaysAgo,
+		UpdatedAt:     fourDaysAgo,
+	}
+	assert.NoError(t, svcCtx.DB.Create(&resolvedTicket).Error)
+
+	public.AutoCloseExpiredAwaitingUserTickets(svcCtx.DB)
+
+	var checkResolvedTicket model.Ticket
+	assert.NoError(t, svcCtx.DB.First(&checkResolvedTicket, "id = ?", resolvedTicket.ID).Error)
+	assert.Equal(t, model.TicketStatusClosed, checkResolvedTicket.Status, "Ticket resolved for > 3 days must be automatically closed")
 }

@@ -41,6 +41,8 @@ type ThemeSettingsResponse struct {
 	GoogleClientID                string `json:"google_client_id,omitempty"`
 	GithubClientID                string `json:"github_client_id,omitempty"`
 	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
+	TicketSMSMode                 string `json:"ticket_sms_mode,omitempty"`
+	TicketEmailMode               string `json:"ticket_email_mode,omitempty"`
 }
 
 type UpdateThemeSettingsRequest struct {
@@ -84,6 +86,8 @@ type UpdateThemeSettingsRequest struct {
 	GoogleClientID                string `json:"google_client_id,omitempty"`
 	GithubClientID                string `json:"github_client_id,omitempty"`
 	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
+	TicketSMSMode                 string `json:"ticket_sms_mode,omitempty"`
+	TicketEmailMode               string `json:"ticket_email_mode,omitempty"`
 }
 
 type PasswordLoginRequest struct {

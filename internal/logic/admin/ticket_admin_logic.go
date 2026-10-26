@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/notification"
+	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -33,6 +34,8 @@ func NewTicketAdminLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ticke
 
 // ListTickets returns paginated support tickets with filtering and status counts
 func (l *TicketAdminLogic) ListTickets(req *types.AdminTicketListRequest) (*types.AdminTicketListResponse, error) {
+	public.AutoCloseExpiredAwaitingUserTickets(l.svcCtx.DB.WithContext(l.ctx))
+
 	db := l.svcCtx.DB.WithContext(l.ctx).Model(&model.Ticket{})
 
 	// 1. Calculate status statistics
@@ -102,6 +105,8 @@ func (l *TicketAdminLogic) ListTickets(req *types.AdminTicketListRequest) (*type
 
 // GetTicketDetail returns ticket data and the complete message history (including internal staff notes)
 func (l *TicketAdminLogic) GetTicketDetail(ticketIDStr string) (*types.TicketDetailResponse, error) {
+	public.AutoCloseExpiredAwaitingUserTickets(l.svcCtx.DB.WithContext(l.ctx))
+
 	tUUID, err := uuid.Parse(ticketIDStr)
 	if err != nil {
 		return nil, errors.New("شناسه تیکت نامعتبر است")
@@ -160,7 +165,7 @@ func (l *TicketAdminLogic) ReplyTicket(ticketIDStr string, req *types.AdminReply
 	}
 
 	now := time.Now()
-	senderName := "پشتیبانی آناهیکس (" + adminUsername + ")"
+	senderName := "پشتیبانی آناهیکس"
 	if req.IsInternal {
 		senderName = "یادداشت محرمانه اپراتور (" + adminUsername + ")"
 	}
@@ -263,6 +268,9 @@ func (l *TicketAdminLogic) UpdateTicket(ticketIDStr string, req *types.AdminUpda
 	}
 	if req.AssignedAdminName != nil {
 		updates["assigned_admin_name"] = *req.AssignedAdminName
+	}
+	if req.NotifyViaSMS != nil {
+		updates["notify_via_sms"] = *req.NotifyViaSMS
 	}
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Model(&ticket).Updates(updates).Error; err != nil {

@@ -449,6 +449,9 @@ func (l *ContentAdminLogic) ListHelpGuidesAdmin(page, pageSize int, search, cate
 			Icon:                g.Icon,
 			Difficulty:          g.Difficulty,
 			ServiceTarget:       g.ServiceTarget,
+			AuthorName:          g.AuthorName,
+			AuthorRole:          g.AuthorRole,
+			AuthorAvatar:        g.AuthorAvatar,
 			ReadingTimeMinutes:  g.ReadingTimeMinutes,
 			ViewCount:           g.ViewCount,
 			HelpfulYes:          g.HelpfulYes,
@@ -506,6 +509,9 @@ func (l *ContentAdminLogic) GetHelpGuideAdmin(id string) (*types.HelpGuideDetail
 		Icon:                g.Icon,
 		Difficulty:          g.Difficulty,
 		ServiceTarget:       g.ServiceTarget,
+		AuthorName:          g.AuthorName,
+		AuthorRole:          g.AuthorRole,
+		AuthorAvatar:        g.AuthorAvatar,
 		ReadingTimeMinutes:  g.ReadingTimeMinutes,
 		ViewCount:           g.ViewCount,
 		HelpfulYes:          g.HelpfulYes,
@@ -590,6 +596,9 @@ func (l *ContentAdminLogic) CreateHelpGuide(req *types.CreateHelpGuideRequest) (
 		Icon:                strings.TrimSpace(req.Icon),
 		Difficulty:          difficulty,
 		ServiceTarget:       serviceTarget,
+		AuthorName:          strings.TrimSpace(req.AuthorName),
+		AuthorRole:          strings.TrimSpace(req.AuthorRole),
+		AuthorAvatar:        strings.TrimSpace(req.AuthorAvatar),
 		ReadingTimeMinutes:  readingTime,
 		SortOrder:           req.SortOrder,
 		IsFeatured:          req.IsFeatured,
@@ -659,6 +668,15 @@ func (l *ContentAdminLogic) UpdateHelpGuide(id string, req *types.UpdateHelpGuid
 	}
 	if req.ServiceTarget != "" {
 		updates["service_target"] = req.ServiceTarget
+	}
+	if req.AuthorName != "" {
+		updates["author_name"] = strings.TrimSpace(req.AuthorName)
+	}
+	if req.AuthorRole != "" {
+		updates["author_role"] = strings.TrimSpace(req.AuthorRole)
+	}
+	if req.AuthorAvatar != "" {
+		updates["author_avatar"] = strings.TrimSpace(req.AuthorAvatar)
 	}
 	if req.ReadingTimeMinutes > 0 {
 		updates["reading_time_minutes"] = req.ReadingTimeMinutes
@@ -872,16 +890,35 @@ func (l *ContentAdminLogic) ListComments(articleID string, status string) ([]typ
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
+	// Fetch article metadata for each comment
+	articleIDs := make([]uuid.UUID, 0, len(comments))
+	for _, c := range comments {
+		articleIDs = append(articleIDs, c.ArticleID)
+	}
+
+	articleMap := make(map[uuid.UUID]model.Article)
+	if len(articleIDs) > 0 {
+		var arts []model.Article
+		l.svcCtx.DB.WithContext(l.ctx).Where("id IN ?", articleIDs).Find(&arts)
+		for _, a := range arts {
+			articleMap[a.ID] = a
+		}
+	}
+
 	res := make([]types.ArticleCommentDTO, len(comments))
 	for i, c := range comments {
+		art := articleMap[c.ArticleID]
 		res[i] = types.ArticleCommentDTO{
-			ID:         c.ID.String(),
-			ArticleID:  c.ArticleID.String(),
-			AuthorName: c.AuthorName,
-			Content:    c.Content,
-			Status:     c.Status,
-			AdminReply: c.AdminReply,
-			CreatedAt:  c.CreatedAt,
+			ID:           c.ID.String(),
+			ArticleID:    c.ArticleID.String(),
+			ArticleTitle: art.Title,
+			ArticleSlug:  art.Slug,
+			AuthorName:   c.AuthorName,
+			Email:        c.Email,
+			Content:      c.Content,
+			Status:       c.Status,
+			AdminReply:   c.AdminReply,
+			CreatedAt:    c.CreatedAt,
 		}
 	}
 	return res, nil

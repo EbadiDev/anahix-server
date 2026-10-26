@@ -64,6 +64,10 @@ func (l *SMSSettingsLogic) GetSMSSettings() (*types.SMSSettingsResponse, error) 
 		templateRenewal = "100003"
 	}
 	isSandbox := configMap["smsir_is_sandbox"] == "true"
+	ticketSMSMode := configMap["ticket_sms_mode"]
+	if ticketSMSMode == "" {
+		ticketSMSMode = "default_on"
+	}
 
 	templates := []types.SMSTemplateItem{
 		{
@@ -131,6 +135,7 @@ func (l *SMSSettingsLogic) GetSMSSettings() (*types.SMSSettingsResponse, error) 
 		IsSandbox:             isSandbox,
 		LiveCredit:            credit,
 		Lines:                 linesStr,
+		TicketSMSMode:         ticketSMSMode,
 	}, nil
 }
 
@@ -182,6 +187,9 @@ func (l *SMSSettingsLogic) UpdateSMSSettings(req *types.UpdateSMSSettingsRequest
 			val = "true"
 		}
 		_ = upsertSetting("smsir_is_sandbox", val, "حالت محیط آزمایشی (سندباکس)", "bool")
+	}
+	if req.TicketSMSMode != nil && *req.TicketSMSMode != "" {
+		_ = upsertSetting("ticket_sms_mode", strings.TrimSpace(*req.TicketSMSMode), "حالت پیش‌فرض اطلاع‌رسانی پیامک تیکت‌ها", "string")
 	}
 
 	// Record admin audit log

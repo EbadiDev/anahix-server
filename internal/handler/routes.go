@@ -128,6 +128,8 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			tickets.POST("/:id/reply", pubTicketHandler.ReplyTicket)
 			tickets.POST("/:id/close", pubTicketHandler.CloseTicket)
 			tickets.POST("/:id/rate", pubTicketHandler.RateTicket)
+			tickets.PATCH("/:id/notifications", pubTicketHandler.UpdateNotificationSettings)
+			tickets.PUT("/:id/notifications", pubTicketHandler.UpdateNotificationSettings)
 			tickets.POST("/upload", pubTicketHandler.UploadAttachment)
 		}
 
@@ -153,7 +155,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		{
 			articles.GET("", pubContentHandler.ListArticles)
 			articles.GET("/:slug", pubContentHandler.GetArticleDetail)
-			articles.POST("/:slug/like", pubContentHandler.LikeArticle)
+			articles.POST("/:slug/like", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubContentHandler.LikeArticle)
 			articles.POST("/:slug/comments", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubContentHandler.SubmitComment)
 		}
 
