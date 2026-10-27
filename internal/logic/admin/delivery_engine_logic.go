@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"strconv"
 
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -351,4 +353,401 @@ func (l *DeliveryEngineLogic) LinkProductToProvider(req *types.LinkProductProvid
 
 func (l *DeliveryEngineLogic) LinkProductToInsightX(req *types.LinkProductProviderRequest) error {
 	return l.LinkProductToProvider(req)
+}
+
+func (l *DeliveryEngineLogic) ListBotProviderSettings() ([]types.BotProviderSettingDTO, error) {
+	effectiveRate := l.getEffectiveRate()
+
+	var settings []model.SystemSetting
+	_ = l.svcCtx.DB.WithContext(l.ctx).Where("category = ?", "bot_providers").Find(&settings).Error
+
+	settingMap := make(map[string]string)
+	for _, s := range settings {
+		settingMap[s.Key] = s.Value
+	}
+
+	adapters := l.svcCtx.FulfillmentManager.ListAdapters()
+	result := make([]types.BotProviderSettingDTO, 0, len(adapters))
+
+	for _, adapter := range adapters {
+		key := adapter.GetProviderKey()
+		nameFA := adapter.GetProviderNameFA()
+
+		enabled := settingMap["provider_"+key+"_enabled"] == "true"
+		apiKey := settingMap["provider_"+key+"_api_key"]
+		baseURL := settingMap["provider_"+key+"_base_url"]
+		if baseURL == "" {
+			baseURL = adapter.GetDefaultBaseURL()
+		}
+
+		margin := 25.0
+		if mStr, ok := settingMap["provider_"+key+"_margin"]; ok && mStr != "" {
+			if mVal, err := strconv.ParseFloat(mStr, 64); err == nil && mVal >= 0 {
+				margin = mVal
+			}
+		}
+
+		// Fallback for InsightX legacy settings
+		if key == fulfillment.ProviderInsightX && apiKey == "" {
+			_, legacyKey, legacyMargin := l.getInstantDeliveryConfig()
+			if legacyKey != "" {
+				apiKey = legacyKey
+				margin = legacyMargin
+				enabled = true
+			}
+		}
+
+		hasKey := apiKey != ""
+		maskedKey := ""
+		if len(apiKey) > 8 {
+			maskedKey = apiKey[:4] + "••••••••" + apiKey[len(apiKey)-4:]
+		} else if hasKey {
+			maskedKey = "••••••••"
+		}
+
+		cfg := fulfillment.ProviderConfig{
+			Key:           key,
+			NameFA:        nameFA,
+			Enabled:       enabled,
+			APIKey:        apiKey,
+			BaseURL:       baseURL,
+			MarginPercent: margin,
+		}
+
+		balanceUSD := 0.0
+		statusMsg := "کلید اتصال تنظیم نشده است"
+		isConnected := false
+
+		if hasKey {
+			bal, err := adapter.GetBalance(http.DefaultClient, cfg)
+			if err != nil {
+				statusMsg = fmt.Sprintf("خطا: %v", err)
+			} else {
+				balanceUSD = bal.BalanceUSD
+				statusMsg = "اتصال موفق و فعال"
+				isConnected = true
+			}
+		}
+
+		balanceToman := int64(balanceUSD * float64(effectiveRate))
+
+		result = append(result, types.BotProviderSettingDTO{
+			Key:           key,
+			NameFA:        nameFA,
+			Enabled:       enabled,
+			HasAPIKey:     hasKey,
+			APIKeyMasked:  maskedKey,
+			BaseURL:       baseURL,
+			MarginPercent: margin,
+			BalanceUSD:    balanceUSD,
+			BalanceToman:  balanceToman,
+			StatusMessage: statusMsg,
+			IsConnected:   isConnected,
+		})
+	}
+
+	return result, nil
+}
+
+func (l *DeliveryEngineLogic) getEffectiveRate() int64 {
+	ratePriority := "manual"
+	var vnSetting model.SystemSetting
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("key IN (?, ?)", "vn_rate_priority", "fivesim_rate_priority").First(&vnSetting).Error; err == nil {
+		ratePriority = vnSetting.Value
+	}
+	var usdRateSetting model.SystemSetting
+	usdRate := int64(95000)
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("key IN (?, ?)", "vn_usd_rate", "fivesim_usd_rate").First(&usdRateSetting).Error; err == nil {
+		if val, err := strconv.ParseInt(usdRateSetting.Value, 10, 64); err == nil {
+			usdRate = val
+		}
+	}
+	rate, _, _ := exchangerate.GetDefaultClient().ResolveRate(ratePriority, usdRate)
+	return rate
+}
+
+func (l *DeliveryEngineLogic) UpdateBotProviderSettings(req *types.UpdateBotProviderSettingsRequest) error {
+	if req.Key == "" {
+		return xerr.NewErrCode(xerr.InvalidParams)
+	}
+
+	upsertSetting := func(k, val string) error {
+		setting := model.SystemSetting{
+			Category: "bot_providers",
+			Key:      k,
+			Value:    val,
+		}
+		return l.svcCtx.DB.WithContext(l.ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "category"}, {Name: "key"}},
+			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
+		}).Create(&setting).Error
+	}
+
+	if req.Enabled != nil {
+		enStr := "false"
+		if *req.Enabled {
+			enStr = "true"
+		}
+		if err := upsertSetting("provider_"+req.Key+"_enabled", enStr); err != nil {
+			return err
+		}
+	}
+
+	if req.APIKey != "" {
+		if err := upsertSetting("provider_"+req.Key+"_api_key", req.APIKey); err != nil {
+			return err
+		}
+	}
+
+	if req.BaseURL != "" {
+		if err := upsertSetting("provider_"+req.Key+"_base_url", req.BaseURL); err != nil {
+			return err
+		}
+	}
+
+	if req.MarginPercent != nil {
+		mStr := fmt.Sprintf("%.2f", *req.MarginPercent)
+		if err := upsertSetting("provider_"+req.Key+"_margin", mStr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *DeliveryEngineLogic) GetBotCatalog(providerKey string, forceRefresh bool) ([]fulfillment.ProviderProductDTO, error) {
+	effectiveRate := l.getEffectiveRate()
+
+	var settings []model.SystemSetting
+	_ = l.svcCtx.DB.WithContext(l.ctx).Where("category = ?", "bot_providers").Find(&settings).Error
+
+	settingMap := make(map[string]string)
+	for _, s := range settings {
+		settingMap[s.Key] = s.Value
+	}
+
+	apiKey := settingMap["provider_"+providerKey+"_api_key"]
+	baseURL := settingMap["provider_"+providerKey+"_base_url"]
+	margin := 25.0
+	if mStr, ok := settingMap["provider_"+providerKey+"_margin"]; ok && mStr != "" {
+		if mVal, err := strconv.ParseFloat(mStr, 64); err == nil && mVal >= 0 {
+			margin = mVal
+		}
+	}
+
+	if providerKey == fulfillment.ProviderInsightX && apiKey == "" {
+		_, legacyKey, legacyMargin := l.getInstantDeliveryConfig()
+		if legacyKey != "" {
+			apiKey = legacyKey
+			margin = legacyMargin
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("کلید API برای تامین‌کننده %s تنظیم نشده است", providerKey)
+	}
+
+	cfg := fulfillment.ProviderConfig{
+		Key:           providerKey,
+		APIKey:        apiKey,
+		BaseURL:       baseURL,
+		MarginPercent: margin,
+	}
+
+	items, err := l.svcCtx.FulfillmentManager.GetCatalog(providerKey, cfg, forceRefresh)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch existing products in Anahix to mark which items are already linked
+	var products []model.Product
+	_ = l.svcCtx.DB.WithContext(l.ctx).Select("id, title_fa, external_provider, external_product_id, external_product_id_str").Find(&products).Error
+
+	linkedMap := make(map[string][]string)
+	for _, prod := range products {
+		if prod.ExternalProvider == providerKey || (prod.ExternalProvider == "third_party_api" && providerKey == fulfillment.ProviderInsightX) {
+			targetKey := prod.ExternalProductIDStr
+			if targetKey == "" && prod.ExternalProductID > 0 {
+				targetKey = strconv.FormatInt(prod.ExternalProductID, 10)
+			}
+			if targetKey != "" {
+				linkedMap[targetKey] = append(linkedMap[targetKey], prod.TitleFA)
+			}
+		}
+	}
+
+	for i := range items {
+		// Calculate suggested Toman price: CostUSD * Rate * (1 + Margin/100) rounded to 500
+		costToman := float64(items[i].PriceUSD) * float64(effectiveRate) * (1.0 + margin/100.0)
+		tomanRounded := int64(math.Ceil(costToman/500.0) * 500.0)
+		items[i].PriceToman = tomanRounded
+
+		if titles, linked := linkedMap[items[i].ID]; linked {
+			items[i].IsLinked = true
+			items[i].LinkedProducts = titles
+		}
+	}
+
+	return items, nil
+}
+
+func (l *DeliveryEngineLogic) ImportBotProduct(req *types.ImportBotProductRequest) (*model.Product, error) {
+	if req.TitleFA == "" || req.Slug == "" || req.ProviderKey == "" || req.ExternalProductID == "" {
+		return nil, xerr.NewErrCode(xerr.InvalidParams)
+	}
+
+	// Check if slug already exists
+	var existing model.Product
+	err := l.svcCtx.DB.WithContext(l.ctx).Where("slug = ?", req.Slug).First(&existing).Error
+
+	numericID, _ := strconv.ParseInt(req.ExternalProductID, 10, 64)
+
+	deliveryType := model.DeliveryInstant
+	if req.DeliveryStrategy == "manual_operator" {
+		deliveryType = model.DeliveryManualTimed
+	}
+
+	strategy := req.DeliveryStrategy
+	if strategy == "" {
+		strategy = "third_party_instant"
+	}
+
+	stockMode := req.StockDisplayMode
+	if stockMode == "" {
+		stockMode = "show_exact"
+	}
+
+	reqInput := req.RequiredCustomerInput
+	if reqInput == "" {
+		reqInput = "none"
+	}
+
+	payloadType := req.DeliveredPayloadType
+	if payloadType == "" {
+		payloadType = "license_code"
+	}
+
+	snoozeDays := req.PrePurchaseSnoozeDays
+	if snoozeDays <= 0 {
+		snoozeDays = 7
+	}
+
+	prod := model.Product{
+		Title:                 req.TitleEN,
+		TitleFA:               req.TitleFA,
+		Slug:                  req.Slug,
+		Description:           req.Description,
+		Category:              model.ProductCategory(req.Category),
+		DeliveryType:          deliveryType,
+		PriceToman:            req.PriceToman,
+		BaseCostUSD:           req.BaseCostUSD,
+		IsActive:              false, // Default to inactive per user specification so admin can review and enrich media before publishing
+		ImageURL:              req.ImageURL,
+		IconURL:               req.IconURL,
+		GroupTag:              req.GroupTag,
+		GroupTitleFA:          req.GroupTitleFA,
+		DeliveryStrategy:      strategy,
+		ExternalProvider:      req.ProviderKey,
+		ExternalProductID:     numericID,
+		ExternalProductIDStr:  req.ExternalProductID,
+		ExternalProductName:   req.ExternalProductName,
+		RequiredCustomerInput: reqInput,
+		DeliveredPayloadType:  payloadType,
+		PrePurchaseNotice:     req.PrePurchaseNotice,
+		PrePurchaseNoticeMode: req.PrePurchaseNoticeMode,
+		PrePurchaseSnoozeDays: snoozeDays,
+		StockDisplayMode:      stockMode,
+	}
+
+	if err == nil {
+		// Update existing
+		prod.ID = existing.ID
+		if err := l.svcCtx.DB.WithContext(l.ctx).Save(&prod).Error; err != nil {
+			return nil, err
+		}
+		return &prod, nil
+	}
+
+	// Create new
+	prod.ID = uuid.New()
+	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&prod).Error; err != nil {
+		return nil, err
+	}
+
+	return &prod, nil
+}
+
+// Store Categories logic
+func (l *DeliveryEngineLogic) ListStoreCategories() ([]model.StoreCategory, error) {
+	var categories []model.StoreCategory
+	err := l.svcCtx.DB.WithContext(l.ctx).
+		Preload("Children").
+		Where("parent_id IS NULL").
+		Order("sort_order asc, created_at asc").
+		Find(&categories).Error
+	return categories, err
+}
+
+func (l *DeliveryEngineLogic) CreateStoreCategory(req *types.CreateStoreCategoryRequest) error {
+	cat := model.StoreCategory{
+		ID:          uuid.New(),
+		TitleFA:     req.TitleFA,
+		TitleEN:     req.TitleEN,
+		Slug:        req.Slug,
+		Description: req.Description,
+		IconURL:     req.IconURL,
+		SortOrder:   req.SortOrder,
+		IsActive:    req.IsActive,
+	}
+	if req.ParentID != nil && *req.ParentID != "" {
+		if pid, err := uuid.Parse(*req.ParentID); err == nil {
+			cat.ParentID = &pid
+		}
+	}
+	return l.svcCtx.DB.WithContext(l.ctx).Create(&cat).Error
+}
+
+func (l *DeliveryEngineLogic) UpdateStoreCategory(id string, req *types.UpdateStoreCategoryRequest) error {
+	catUUID, err := uuid.Parse(id)
+	if err != nil {
+		return xerr.NewErrCode(xerr.InvalidParams)
+	}
+
+	updates := make(map[string]interface{})
+	if req.TitleFA != "" {
+		updates["title_fa"] = req.TitleFA
+	}
+	if req.TitleEN != "" {
+		updates["title_en"] = req.TitleEN
+	}
+	if req.Slug != "" {
+		updates["slug"] = req.Slug
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.IconURL != "" {
+		updates["icon_url"] = req.IconURL
+	}
+	updates["sort_order"] = req.SortOrder
+	if req.IsActive != nil {
+		updates["is_active"] = *req.IsActive
+	}
+	if req.ParentID != nil && *req.ParentID != "" {
+		if pid, err := uuid.Parse(*req.ParentID); err == nil {
+			updates["parent_id"] = pid
+		}
+	} else if req.ParentID != nil && *req.ParentID == "" {
+		updates["parent_id"] = nil
+	}
+
+	return l.svcCtx.DB.WithContext(l.ctx).Model(&model.StoreCategory{}).Where("id = ?", catUUID).Updates(updates).Error
+}
+
+func (l *DeliveryEngineLogic) DeleteStoreCategory(id string) error {
+	catUUID, err := uuid.Parse(id)
+	if err != nil {
+		return xerr.NewErrCode(xerr.InvalidParams)
+	}
+	return l.svcCtx.DB.WithContext(l.ctx).Where("id = ? OR parent_id = ?", catUUID, catUUID).Delete(&model.StoreCategory{}).Error
 }

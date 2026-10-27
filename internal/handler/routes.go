@@ -70,6 +70,9 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			products.GET("/:slug/review-eligibility", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.CheckReviewEligibility)
 		}
 
+		// Public Hierarchical Store Categories
+		api.GET("/store/categories", pubHandler.ListStoreCategories)
+
 		// Social Proof & Verified Buyer Reviews
 		reviews := api.Group("/reviews")
 		{
@@ -239,6 +242,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.GET("/orders/:order_id", admHandler.GetOrderDetail)
 				protected.POST("/orders/:order_id/2fa-request", admHandler.RequestTwoFactor)
 				protected.POST("/orders/:order_id/complete", admHandler.CompleteOrder)
+				protected.POST("/orders/:order_id/retry-bot", admHandler.RetryOrderBotFulfillment)
 				protected.GET("/orders/:order_id/invoice", admHandler.GetOrderInvoice)
 
 				// Notification Metrics & BI
@@ -265,6 +269,18 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.GET("/delivery/groups", admHandler.ListProductGroups)
 				protected.POST("/delivery/groups/strategy", admHandler.UpdateGroupDeliveryStrategy)
 				protected.POST("/delivery/products/link", admHandler.LinkProductProvider)
+
+				// Multi-Bot Providers & Fulfillment Hub
+				protected.GET("/providers/settings", admHandler.ListBotProviderSettings)
+				protected.POST("/providers/settings", admHandler.UpdateBotProviderSettings)
+				protected.GET("/providers/catalog", admHandler.GetBotCatalog)
+				protected.POST("/providers/import", admHandler.ImportBotProduct)
+
+				// Hierarchical Store Categories Management
+				protected.GET("/store/categories", admHandler.ListStoreCategories)
+				protected.POST("/store/categories", admHandler.CreateStoreCategory)
+				protected.PUT("/store/categories/:id", admHandler.UpdateStoreCategory)
+				protected.DELETE("/store/categories/:id", admHandler.DeleteStoreCategory)
 
 				// Audit & Transaction Logs
 				protected.GET("/logs/transactions", admHandler.ListTransactions)

@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
+	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/result"
@@ -288,6 +289,16 @@ func (h *PublicHandler) UpdateOrderBuyerInvoice(c *gin.Context) {
 	l := public.NewInvoiceLogic(c.Request.Context(), h.svcCtx)
 	err := l.UpdateOrderBuyerInvoice(orderIDOrNo, token, currentCustUUID, false, &req)
 	result.HttpResult(c, gin.H{"status": "ok", "message": "اطلاعات خریدار فاکتور رسمی با موفقیت به‌روزرسانی شد"}, err)
+}
+
+func (h *PublicHandler) ListStoreCategories(c *gin.Context) {
+	var categories []model.StoreCategory
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Preload("Children").
+		Where("parent_id IS NULL AND is_active = ?", true).
+		Order("sort_order asc, created_at asc").
+		Find(&categories).Error
+	result.HttpResult(c, categories, err)
 }
 
 

@@ -146,7 +146,9 @@ func seedInitialData(db *gorm.DB) {
 		db.Create(&yasinCustomer)
 		log.Println("🌱 Created initial customer profile for 'محمد یاسین نصیری' with avatar")
 	} else {
-		yasinCustomer.AvatarURL = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+		if yasinCustomer.AvatarURL == "" {
+			yasinCustomer.AvatarURL = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+		}
 		if yasinCustomer.FullName == "" || yasinCustomer.FullName == "کاربر بدون نام" {
 			yasinCustomer.FullName = "محمد یاسین نصیری"
 			yasinCustomer.FirstName = "محمد یاسین"
@@ -157,7 +159,7 @@ func seedInitialData(db *gorm.DB) {
 		yasinCustomer.EmailVerified = true
 		yasinCustomer.IsActive = true
 		db.Save(&yasinCustomer)
-		log.Println("🔑 Verified and updated profile with avatar for 'محمد یاسین نصیری'")
+		log.Println("🔑 Verified admin customer profile for 'محمد یاسین نصیری'")
 	}
 	db.Model(&model.Customer{}).Where("phone = ?", "09928376377").Update("is_admin", true)
 

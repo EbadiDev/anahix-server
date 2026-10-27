@@ -68,7 +68,24 @@ type Product struct {
 	DeliveryStrategy    string `gorm:"size:50;default:'auto'" json:"delivery_strategy"`
 	ExternalProvider    string `gorm:"size:50;default:'third_party_api'" json:"external_provider"`
 	ExternalProductID   int64  `gorm:"default:0;index" json:"external_product_id"`
+	ExternalProductIDStr string `gorm:"size:120;index" json:"external_product_id_str"`
 	ExternalProductName string `gorm:"size:255" json:"external_product_name"`
+
+	// Input & Delivery Payload Modes
+	RequiredCustomerInput string `gorm:"size:50;default:'none'" json:"required_customer_input"`
+	DeliveredPayloadType  string `gorm:"size:50;default:'license_code'" json:"delivered_payload_type"`
+
+	// Pre-Purchase Notice & Rich Content Interceptor
+	PrePurchaseNotice     string `gorm:"type:text" json:"pre_purchase_notice"`
+	PrePurchaseNoticeMode string `gorm:"size:30;default:'none'" json:"pre_purchase_notice_mode"`
+	PrePurchaseSnoozeDays int    `gorm:"default:7" json:"pre_purchase_snooze_days"`
+
+	// Merchandising & Stock Display Control
+	StockDisplayMode      string `gorm:"size:30;default:'show_exact'" json:"stock_display_mode"`
+	ParentCategorySlug    string `gorm:"size:100;index" json:"parent_category_slug"`
+	CategorySlug          string `gorm:"size:100;index" json:"category_slug"`
+	ShowSalesCount        bool   `gorm:"default:true" json:"show_sales_count"`
+	ShowProgress          bool   `gorm:"default:true" json:"show_progress"`
 
 	// PDP & SEO Enhancements
 	MetaTitle       string `gorm:"size:255" json:"meta_title"`

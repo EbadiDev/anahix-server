@@ -434,6 +434,82 @@ type ProviderCatalogItemDTO struct {
 
 type InsightXProductDTO = ProviderCatalogItemDTO
 
+// Multi-Bot Upstream Provider DTOs
+type BotProviderSettingDTO struct {
+	Key           string  `json:"key"`
+	NameFA        string  `json:"name_fa"`
+	Enabled       bool    `json:"enabled"`
+	HasAPIKey     bool    `json:"has_api_key"`
+	APIKeyMasked  string  `json:"api_key_masked"`
+	BaseURL       string  `json:"base_url"`
+	MarginPercent float64 `json:"margin_percent"`
+	BalanceUSD    float64 `json:"balance_usd"`
+	BalanceToman  int64   `json:"balance_toman"`
+	StatusMessage string  `json:"status_message"`
+	IsConnected   bool    `json:"is_connected"`
+}
+
+type UpdateBotProviderSettingsRequest struct {
+	Key           string   `json:"key" binding:"required"`
+	Enabled       *bool    `json:"enabled"`
+	APIKey        string   `json:"api_key"`
+	BaseURL       string   `json:"base_url"`
+	MarginPercent *float64 `json:"margin_percent"`
+}
+
+type RetryBotFulfillmentResponse struct {
+	Success          bool   `json:"success"`
+	Message          string `json:"message"`
+	Status           string `json:"status"`
+	DeliveredPayload string `json:"delivered_payload,omitempty"`
+}
+
+type ImportBotProductRequest struct {
+	ProviderKey           string  `json:"provider_key" binding:"required"`
+	ExternalProductID     string  `json:"external_product_id" binding:"required"`
+	ExternalProductName   string  `json:"external_product_name"`
+	TitleFA               string  `json:"title_fa" binding:"required"`
+	TitleEN               string  `json:"title_en"`
+	Slug                  string  `json:"slug" binding:"required"`
+	Category              string  `json:"category"`
+	GroupTag              string  `json:"group_tag"`
+	GroupTitleFA          string  `json:"group_title_fa"`
+	PriceToman            int64   `json:"price_toman" binding:"required"`
+	BaseCostUSD           float64 `json:"base_cost_usd"`
+	DeliveryStrategy      string  `json:"delivery_strategy"`
+	RequiredCustomerInput string  `json:"required_customer_input"`
+	DeliveredPayloadType  string  `json:"delivered_payload_type"`
+	PrePurchaseNotice     string  `json:"pre_purchase_notice"`
+	PrePurchaseNoticeMode string  `json:"pre_purchase_notice_mode"`
+	PrePurchaseSnoozeDays int     `json:"pre_purchase_snooze_days"`
+	StockDisplayMode      string  `json:"stock_display_mode"`
+	ImageURL              string  `json:"image_url"`
+	IconURL               string  `json:"icon_url"`
+	Description           string  `json:"description"`
+}
+
+type CreateStoreCategoryRequest struct {
+	ParentID    *string `json:"parent_id"`
+	TitleFA     string  `json:"title_fa" binding:"required"`
+	TitleEN     string  `json:"title_en"`
+	Slug        string  `json:"slug" binding:"required"`
+	Description string  `json:"description"`
+	IconURL     string  `json:"icon_url"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    bool    `json:"is_active"`
+}
+
+type UpdateStoreCategoryRequest struct {
+	ParentID    *string `json:"parent_id"`
+	TitleFA     string  `json:"title_fa"`
+	TitleEN     string  `json:"title_en"`
+	Slug        string  `json:"slug"`
+	Description string  `json:"description"`
+	IconURL     string  `json:"icon_url"`
+	SortOrder   int     `json:"sort_order"`
+	IsActive    *bool   `json:"is_active"`
+}
+
 // Audit and Transaction Logs DTOs
 
 type TransactionListResponse struct {

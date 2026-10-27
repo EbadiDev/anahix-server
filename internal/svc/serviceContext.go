@@ -15,6 +15,7 @@ type ServiceContext struct {
 	Vault               *crypto.Vault
 	SMSProvider         *sms.Client
 	FulfillmentProvider *fulfillment.Client
+	FulfillmentManager  *fulfillment.Manager
 	SMSIRClient         *smsir.Client
 }
 
@@ -30,6 +31,7 @@ func NewServiceContext(cfg *config.Config, db *gorm.DB) (*ServiceContext, error)
 		Vault:               vault,
 		SMSProvider:         sms.NewClient(),
 		FulfillmentProvider: fulfillment.NewClient(""),
+		FulfillmentManager:  fulfillment.NewManager(),
 		SMSIRClient:         smsir.NewClient(),
 	}, nil
 }

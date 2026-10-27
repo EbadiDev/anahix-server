@@ -56,6 +56,7 @@ func InitPostgres(cfg config.PostgresConfig, isDebug bool) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.Product{},
+		&model.StoreCategory{},
 		&model.InventoryItem{},
 		&model.Order{},
 		&model.OrderItem{},

@@ -13,9 +13,11 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
 	"github.com/EbadiDev/anahix-server/internal/logic/loyalty"
 	"github.com/EbadiDev/anahix-server/internal/logic/notification"
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
+	"github.com/EbadiDev/anahix-server/pkg/exchangerate"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -237,6 +239,12 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			for q := 0; q < entry.Quantity; q++ {
 				var reservedItemID *uuid.UUID
 				deliveredPayload := ""
+				deliveredPayloadType := prod.DeliveredPayloadType
+				if deliveredPayloadType == "" {
+					deliveredPayloadType = "license_code"
+				}
+				externalOrderID := ""
+				externalProvider := prod.ExternalProvider
 				instructions := prod.Instructions
 
 				if effectiveStrategy == "local_inventory" {
@@ -269,37 +277,113 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 							deliveredPayload = dec
 						}
 					}
-				} else if effectiveStrategy == "third_party_instant" && isPaid && prod.ExternalProductID > 0 {
-					var apiKeySetting model.SystemSetting
-					_ = tx.Where("key IN (?, ?)", "provider_api_key", "insightx_api_key").First(&apiKeySetting).Error
-					if apiKeySetting.Value != "" {
-						orderRes, oErr := l.svcCtx.FulfillmentProvider.CreateOrder(apiKeySetting.Value, orderID.String(), prod.ExternalProductID, 1)
-						if oErr == nil && orderRes != nil && len(orderRes.Codes) > 0 {
-							deliveredPayload = orderRes.Codes[0]
-							instructions = "کد فعال‌سازی آنی شما: " + deliveredPayload
+				} else if effectiveStrategy == "third_party_instant" && isPaid && (prod.ExternalProductID > 0 || prod.ExternalProductIDStr != "") {
+					providerKey := prod.ExternalProvider
+					if providerKey == "" || providerKey == "third_party_api" {
+						providerKey = fulfillment.ProviderInsightX
+					}
+
+					var settings []model.SystemSetting
+					_ = tx.Where("category IN (?, ?, ?)", "bot_providers", "instant_delivery", "insightx").Find(&settings).Error
+
+					configMap := make(map[string]string)
+					for _, s := range settings {
+						configMap[s.Key] = s.Value
+					}
+
+					apiKey := configMap["provider_"+providerKey+"_api_key"]
+					baseURL := configMap["provider_"+providerKey+"_base_url"]
+					if apiKey == "" && providerKey == fulfillment.ProviderInsightX {
+						apiKey = configMap["provider_api_key"]
+						if apiKey == "" {
+							apiKey = configMap["insightx_api_key"]
+						}
+					}
+
+					if apiKey != "" {
+						prodIDStr := prod.ExternalProductIDStr
+						if prodIDStr == "" && prod.ExternalProductID > 0 {
+							prodIDStr = strconv.FormatInt(prod.ExternalProductID, 10)
+						}
+
+						botReq := fulfillment.ProviderOrderRequest{
+							ProductID:        prodIDStr,
+							NumericID:        prod.ExternalProductID,
+							Quantity:         1,
+							IdempotencyKey:   fmt.Sprintf("%s_%d", orderID.String(), q),
+							CustomerEmail:    req.CustomerAccountEmail,
+							CustomerPassword: req.CustomerAccountPassword,
+							TelegramUsername: req.CustomerNotes,
+						}
+
+						botCfg := fulfillment.ProviderConfig{
+							Key:     providerKey,
+							APIKey:  apiKey,
+							BaseURL: baseURL,
+						}
+
+						orderRes, oErr := l.svcCtx.FulfillmentManager.CreateOrder(providerKey, botCfg, botReq)
+						if oErr == nil && orderRes != nil && orderRes.Success {
+							deliveredPayload = orderRes.DeliveredPayload
+							if orderRes.PayloadType != "" {
+								deliveredPayloadType = orderRes.PayloadType
+							}
+							externalOrderID = orderRes.OrderID
+							if orderRes.Instructions != "" {
+								instructions = orderRes.Instructions
+							} else if deliveredPayload != "" {
+								if deliveredPayloadType == "activation_link" {
+									instructions = "لینک فعال‌سازی اختصاصی شما: " + deliveredPayload
+								} else {
+									instructions = "کد لایسنس اختصاصی شما: " + deliveredPayload
+								}
+							}
 						}
 					}
 				}
 
-				// Calculate unit Cost in USD and Toman
+				// Resolve effective rate for cost tracking
+				ratePriority := "manual"
+				var vnSetting model.SystemSetting
+				if err := tx.Where("key IN (?, ?)", "vn_rate_priority", "fivesim_rate_priority").First(&vnSetting).Error; err == nil {
+					ratePriority = vnSetting.Value
+				}
+				usdRate := int64(95000)
+				var usdRateSetting model.SystemSetting
+				if err := tx.Where("key IN (?, ?)", "vn_usd_rate", "fivesim_usd_rate").First(&usdRateSetting).Error; err == nil {
+					if val, err := strconv.ParseInt(usdRateSetting.Value, 10, 64); err == nil && val > 0 {
+						usdRate = val
+					}
+				}
+				effectiveRate, _, _ := exchangerate.GetDefaultClient().ResolveRate(ratePriority, usdRate)
+
 				costUSD := prod.BaseCostUSD
-				costToman := int64(costUSD * 95000) // Default fallback if needed
+				costToman := int64(costUSD * float64(effectiveRate))
+
+				customerInput := ""
+				if req.CustomerNotes != "" {
+					customerInput = req.CustomerNotes
+				}
 
 				orderItems = append(orderItems, model.OrderItem{
-					ID:               uuid.New(),
-					OrderID:          orderID,
-					ProductID:        prod.ID,
-					InventoryItemID:  reservedItemID,
-					ProductTitle:     prod.TitleFA,
-					ProductSlug:      prod.Slug,
-					DeliveryType:     prod.DeliveryType,
-					UnitPriceToman:   prod.PriceToman,
-					Quantity:         1,
-					SubtotalToman:    prod.PriceToman,
-					CostUSD:          costUSD,
-					CostToman:        costToman,
-					DeliveredPayload: deliveredPayload,
-					Instructions:     instructions,
+					ID:                   uuid.New(),
+					OrderID:              orderID,
+					ProductID:            prod.ID,
+					InventoryItemID:      reservedItemID,
+					ProductTitle:         prod.TitleFA,
+					ProductSlug:          prod.Slug,
+					DeliveryType:         prod.DeliveryType,
+					UnitPriceToman:       prod.PriceToman,
+					Quantity:             1,
+					SubtotalToman:        prod.PriceToman,
+					CostUSD:              costUSD,
+					CostToman:            costToman,
+					DeliveredPayload:     deliveredPayload,
+					DeliveredPayloadType: deliveredPayloadType,
+					ExternalOrderID:      externalOrderID,
+					ExternalProvider:     externalProvider,
+					CustomerInputData:    customerInput,
+					Instructions:         instructions,
 				})
 			}
 		}
@@ -320,13 +404,12 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		var completedAtTime *time.Time
 
 		if isPaid {
-			initialStatus = model.OrderPaid
 			paidAtTime = &now
 
 			// Check if all items are instantly fulfilled
 			allInstantDelivered := true
 			for _, oi := range orderItems {
-				if oi.DeliveredPayload == "" && oi.DeliveryType != model.DeliveryInstant {
+				if oi.DeliveredPayload == "" {
 					allInstantDelivered = false
 					break
 				}
@@ -334,6 +417,9 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			if allInstantDelivered {
 				initialStatus = model.OrderCompleted
 				completedAtTime = &now
+			} else {
+				// Graceful fail-safe fallback to Operator Queue (Mode C)
+				initialStatus = model.OrderInQueue
 			}
 		}
 

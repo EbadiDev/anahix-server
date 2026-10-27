@@ -1,14 +1,16 @@
 package admin
 
 import (
-	"context"
-	"fmt"
-	"strings"
-	"time"
+ "context"
+ "fmt"
+ "strconv"
+ "strings"
+ "time"
 
-	"github.com/EbadiDev/anahix-server/internal/logic/loyalty"
-	"github.com/EbadiDev/anahix-server/internal/logic/notification"
-	"github.com/EbadiDev/anahix-server/internal/model"
+ "github.com/EbadiDev/anahix-server/internal/logic/loyalty"
+ "github.com/EbadiDev/anahix-server/internal/logic/notification"
+ "github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
+ "github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
@@ -48,6 +50,10 @@ type AdminQueueOrderItem struct {
 	TwoFactorCode        string                `json:"two_factor_code,omitempty"`
 	TwoFactorStatus      model.TwoFactorStatus `json:"two_factor_status"`
 	TwoFactorRequestedAt *time.Time            `json:"two_factor_requested_at,omitempty"`
+	ExternalProvider     string                `json:"external_provider,omitempty"`
+	ExternalProductID    string                `json:"external_product_id,omitempty"`
+	CanRetryFulfillment  bool                  `json:"can_retry_fulfillment"`
+	DeliveredPayload     string                `json:"delivered_payload,omitempty"`
 	CreatedAt            time.Time             `json:"created_at"`
 	UpdatedAt            time.Time             `json:"updated_at"`
 }
@@ -106,6 +112,12 @@ func (l *OrderDeskLogic) ListQueueOrders(status string, deliveryType string) ([]
 
 		if len(o.Items) > 0 {
 			item.ProductTitle = o.Items[0].ProductTitle
+			item.ExternalProvider = o.Items[0].ExternalProvider
+			item.ExternalProductID = o.Items[0].ExternalOrderID
+			item.DeliveredPayload = o.Items[0].DeliveredPayload
+			if item.DeliveredPayload == "" && (o.Items[0].ExternalProvider != "" && o.Items[0].ExternalProvider != "manual_vault") {
+				item.CanRetryFulfillment = true
+			}
 		}
 
 		if o.CustomerCredentialsEncrypted != "" && l.svcCtx.Vault != nil {
@@ -311,6 +323,12 @@ func (l *OrderDeskLogic) ListAllOrders(status string, deliveryType string, payme
 
 		if len(o.Items) > 0 {
 			item.ProductTitle = o.Items[0].ProductTitle
+			item.ExternalProvider = o.Items[0].ExternalProvider
+			item.ExternalProductID = o.Items[0].ExternalOrderID
+			item.DeliveredPayload = o.Items[0].DeliveredPayload
+			if item.DeliveredPayload == "" && (o.Items[0].ExternalProvider != "" && o.Items[0].ExternalProvider != "manual_vault") {
+				item.CanRetryFulfillment = true
+			}
 		}
 
 		if o.CustomerCredentialsEncrypted != "" && l.svcCtx.Vault != nil {
@@ -419,4 +437,135 @@ func (l *OrderDeskLogic) UpdateOrderStatus(orderIDStr string, req *types.AdminUp
 	_ = l.svcCtx.DB.WithContext(l.ctx).Create(&auditLog)
 
 	return nil
+}
+
+func (l *OrderDeskLogic) RetryOrderBotFulfillment(orderIDOrNo string) (*types.RetryBotFulfillmentResponse, error) {
+	var order model.Order
+	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items")
+	if u, err := uuid.Parse(orderIDOrNo); err == nil {
+		query = query.Where("id = ?", u)
+	} else {
+		query = query.Where("order_number = ?", orderIDOrNo)
+	}
+	if err := query.First(&order).Error; err != nil {
+		return nil, xerr.NewErrCode(xerr.OrderNotFound)
+	}
+
+	var unfulfilledItem *model.OrderItem
+	for i := range order.Items {
+		if order.Items[i].DeliveredPayload == "" {
+			unfulfilledItem = &order.Items[i]
+			break
+		}
+	}
+
+	if unfulfilledItem == nil {
+		return &types.RetryBotFulfillmentResponse{
+			Success: true,
+			Message: "تمامی آیتم‌های این سفارش قبلاً تحویل داده شده‌اند",
+			Status:  string(order.Status),
+		}, nil
+	}
+
+	// Lookup product to find external provider & ID
+	var prod model.Product
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", unfulfilledItem.ProductID).First(&prod).Error; err != nil {
+		return nil, xerr.NewErrMsg("محصول مرتبط با سفارش یافت نشد")
+	}
+
+	providerKey := prod.ExternalProvider
+	if providerKey == "" || providerKey == "third_party_api" {
+		providerKey = fulfillment.ProviderInsightX
+	}
+
+	var settings []model.SystemSetting
+	_ = l.svcCtx.DB.WithContext(l.ctx).Where("category IN (?, ?, ?)", "bot_providers", "instant_delivery", "insightx").Find(&settings).Error
+
+	configMap := make(map[string]string)
+	for _, s := range settings {
+		configMap[s.Key] = s.Value
+	}
+
+	apiKey := configMap["provider_"+providerKey+"_api_key"]
+	baseURL := configMap["provider_"+providerKey+"_base_url"]
+	if apiKey == "" && providerKey == fulfillment.ProviderInsightX {
+		apiKey = configMap["provider_api_key"]
+		if apiKey == "" {
+			apiKey = configMap["insightx_api_key"]
+		}
+	}
+
+	if apiKey == "" {
+		return nil, fmt.Errorf("کلید API برای تامین‌کننده %s هنوز تنظیم نشده است", providerKey)
+	}
+
+	prodIDStr := prod.ExternalProductIDStr
+	if prodIDStr == "" && prod.ExternalProductID > 0 {
+		prodIDStr = strconv.FormatInt(prod.ExternalProductID, 10)
+	}
+
+	botReq := fulfillment.ProviderOrderRequest{
+		ProductID:      prodIDStr,
+		NumericID:      prod.ExternalProductID,
+		Quantity:       1,
+		IdempotencyKey: fmt.Sprintf("%s_retry_%d", order.ID.String(), time.Now().Unix()),
+	}
+
+	botCfg := fulfillment.ProviderConfig{
+		Key:     providerKey,
+		APIKey:  apiKey,
+		BaseURL: baseURL,
+	}
+
+	orderRes, oErr := l.svcCtx.FulfillmentManager.CreateOrder(providerKey, botCfg, botReq)
+	if oErr != nil || orderRes == nil || !orderRes.Success || orderRes.DeliveredPayload == "" {
+		errMsg := "خطا در صدور از ربات (احتمالاً موجودی ربات یا کیف پول ناکافی است)"
+		if oErr != nil {
+			errMsg = oErr.Error()
+		}
+		return nil, fmt.Errorf("تلاش مجدد ناموفق: %s", errMsg)
+	}
+
+	// Save delivered payload
+	unfulfilledItem.DeliveredPayload = orderRes.DeliveredPayload
+	if orderRes.PayloadType != "" {
+		unfulfilledItem.DeliveredPayloadType = orderRes.PayloadType
+	}
+	unfulfilledItem.ExternalOrderID = orderRes.OrderID
+	_ = l.svcCtx.DB.WithContext(l.ctx).Save(unfulfilledItem)
+
+	// Check if all items are completed
+	allDone := true
+	for _, it := range order.Items {
+		if it.ID == unfulfilledItem.ID {
+			continue
+		}
+		if it.DeliveredPayload == "" {
+			allDone = false
+			break
+		}
+	}
+
+	now := time.Now()
+	if allDone {
+		order.Status = model.OrderCompleted
+		order.CompletedAt = &now
+		_ = l.svcCtx.DB.WithContext(l.ctx).Save(&order)
+
+		// Send completion pattern SMS
+		if order.CustomerPhone != "" {
+			notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+			notifier.SendOrderCompletedAsync(order.CustomerPhone, order.OrderNumber, orderRes.DeliveredPayload)
+		}
+		go func(phone string) {
+			_ = loyalty.RecalculateByPhone(context.Background(), l.svcCtx.DB, phone)
+		}(order.CustomerPhone)
+	}
+
+	return &types.RetryBotFulfillmentResponse{
+		Success:          true,
+		Message:          "تحویل آنی از ربات با موفقیت انجام شد و سفارش تکمیل گردید",
+		Status:           string(order.Status),
+		DeliveredPayload: orderRes.DeliveredPayload,
+	}, nil
 }

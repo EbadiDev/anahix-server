@@ -194,6 +194,16 @@ func (h *AdminHandler) CompleteOrder(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "completed"}, err)
 }
 
+func (h *AdminHandler) RetryOrderBotFulfillment(c *gin.Context) {
+	orderID := c.Param("order_id")
+	l := admin.NewOrderDeskLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.RetryOrderBotFulfillment(orderID)
+	if err == nil && resp != nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "OPERATOR_RETRY_BOT", "order", orderID, fmt.Sprintf("تلاش مجدد و صدور خودکار سفارش #%s از ربات", orderID), resp, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, resp, err)
+}
+
 func (h *AdminHandler) ListProducts(c *gin.Context) {
 	l := admin.NewProductAdminLogic(c.Request.Context(), h.svcCtx)
 	products, err := l.ListProducts()
@@ -380,6 +390,98 @@ func (h *AdminHandler) LinkProductProvider(c *gin.Context) {
 
 func (h *AdminHandler) LinkProductInsightX(c *gin.Context) {
 	h.LinkProductProvider(c)
+}
+
+func (h *AdminHandler) ListBotProviderSettings(c *gin.Context) {
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListBotProviderSettings()
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) UpdateBotProviderSettings(c *gin.Context) {
+	var req types.UpdateBotProviderSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateBotProviderSettings(&req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_BOT_SETTINGS", "delivery_engine", req.Key, fmt.Sprintf("به‌روزرسانی تنظیمات ربات %s", req.Key), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "ok"}, err)
+}
+
+func (h *AdminHandler) GetBotCatalog(c *gin.Context) {
+	providerKey := c.DefaultQuery("provider", "insightx")
+	forceRefresh := c.Query("refresh") == "true"
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.GetBotCatalog(providerKey, forceRefresh)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) ImportBotProduct(c *gin.Context) {
+	var req types.ImportBotProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	prod, err := l.ImportBotProduct(&req)
+	if err == nil && prod != nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "IMPORT_BOT_PRODUCT", "catalog", prod.ID.String(), fmt.Sprintf("ایمپورت محصول %s از ربات %s", prod.TitleFA, req.ProviderKey), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, prod, err)
+}
+
+func (h *AdminHandler) ListStoreCategories(c *gin.Context) {
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.ListStoreCategories()
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) CreateStoreCategory(c *gin.Context) {
+	var req types.CreateStoreCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	err := l.CreateStoreCategory(&req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "CREATE_STORE_CATEGORY", "categories", req.Slug, fmt.Sprintf("ایجاد دسته‌بندی %s", req.TitleFA), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "ok"}, err)
+}
+
+func (h *AdminHandler) UpdateStoreCategory(c *gin.Context) {
+	id := c.Param("id")
+	var req types.UpdateStoreCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	err := l.UpdateStoreCategory(id, &req)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "UPDATE_STORE_CATEGORY", "categories", id, fmt.Sprintf("به‌روزرسانی دسته‌بندی %s", req.TitleFA), req, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "ok"}, err)
+}
+
+func (h *AdminHandler) DeleteStoreCategory(c *gin.Context) {
+	id := c.Param("id")
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	err := l.DeleteStoreCategory(id)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_STORE_CATEGORY", "categories", id, "حذف دسته‌بندی فروشگاه", nil, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "ok"}, err)
 }
 
 // Audit & Transaction Log Endpoints

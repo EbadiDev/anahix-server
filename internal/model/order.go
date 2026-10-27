@@ -123,9 +123,13 @@ type OrderItem struct {
 	CostUSD         float64      `gorm:"type:decimal(10,2);default:0" json:"cost_usd"`
 	CostToman       int64        `gorm:"default:0" json:"cost_toman"`
 	
-	// Delivered payload (stored on instant external fulfillment, or decrypted dynamically for local inventory)
-	DeliveredPayload string    `gorm:"type:text" json:"delivered_payload,omitempty"`
-	Instructions     string    `gorm:"type:text" json:"instructions,omitempty"`
+	// Delivered payload & external tracking
+	DeliveredPayload     string `gorm:"type:text" json:"delivered_payload,omitempty"`
+	DeliveredPayloadType string `gorm:"size:50;default:'license_code'" json:"delivered_payload_type,omitempty"`
+	ExternalOrderID      string `gorm:"size:120" json:"external_order_id,omitempty"`
+	ExternalProvider     string `gorm:"size:50" json:"external_provider,omitempty"`
+	CustomerInputData    string `gorm:"type:text" json:"customer_input_data,omitempty"`
+	Instructions         string `gorm:"type:text" json:"instructions,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
