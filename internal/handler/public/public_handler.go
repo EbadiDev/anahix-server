@@ -1,7 +1,9 @@
 package public
 
 import (
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -299,6 +301,91 @@ func (h *PublicHandler) ListStoreCategories(c *gin.Context) {
 		Order("sort_order asc, created_at asc").
 		Find(&categories).Error
 	result.HttpResult(c, categories, err)
+}
+
+func (h *PublicHandler) ListAnnouncements(c *gin.Context) {
+	now := time.Now()
+	var list []model.SystemAnnouncement
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Where("is_active = ? AND (expires_at IS NULL OR expires_at > ?)", true, now).
+		Order("created_at desc").
+		Find(&list).Error
+	result.HttpResult(c, list, err)
+}
+
+func (h *PublicHandler) CreateStockAlert(c *gin.Context) {
+	var req struct {
+		ProductID string `json:"product_id" binding:"required"`
+		Mobile    string `json:"mobile"`
+		Email     string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+	alert := model.StockAlert{
+		ID:        uuid.New(),
+		ProductID: req.ProductID,
+		Mobile:    req.Mobile,
+		Email:     req.Email,
+		Notified:  false,
+	}
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Create(&alert).Error
+	result.HttpResult(c, gin.H{"success": true, "message": "درخواست اطلاع‌رسانی با موفقیت ثبت شد."}, err)
+}
+
+func (h *PublicHandler) ToggleFavorite(c *gin.Context) {
+	cidStr := c.GetString("customer_id")
+	custID, err := uuid.Parse(cidStr)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("کاربر احراز هویت نشده است"))
+		return
+	}
+
+	var req struct {
+		TargetType string `json:"target_type" binding:"required"`
+		TargetID   string `json:"target_id" binding:"required"`
+		Title      string `json:"title"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	var existing model.UserFavorite
+	db := h.svcCtx.DB.WithContext(c.Request.Context())
+	findErr := db.Where("customer_id = ? AND target_type = ? AND target_id = ?", custID, req.TargetType, req.TargetID).First(&existing).Error
+	if findErr == nil {
+		// Already favorited, remove it
+		db.Delete(&existing)
+		result.HttpResult(c, gin.H{"is_favorite": false, "message": "از نشان‌شده‌ها حذف شد"}, nil)
+		return
+	}
+
+	// Add new favorite
+	fav := model.UserFavorite{
+		ID:         uuid.New(),
+		CustomerID: custID,
+		TargetType: req.TargetType,
+		TargetID:   req.TargetID,
+		Title:      req.Title,
+	}
+	createErr := db.Create(&fav).Error
+	result.HttpResult(c, gin.H{"is_favorite": true, "message": "به نشان‌شده‌ها اضافه شد"}, createErr)
+}
+
+func (h *PublicHandler) ListFavorites(c *gin.Context) {
+	cidStr := c.GetString("customer_id")
+	custID, err := uuid.Parse(cidStr)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("کاربر احراز هویت نشده است"))
+		return
+	}
+
+	var list []model.UserFavorite
+	db := h.svcCtx.DB.WithContext(c.Request.Context())
+	err = db.Where("customer_id = ?", custID).Order("created_at desc").Find(&list).Error
+	result.HttpResult(c, list, err)
 }
 
 

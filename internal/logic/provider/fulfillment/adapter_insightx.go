@@ -17,7 +17,7 @@ func (a *InsightXAdapter) GetProviderKey() string {
 }
 
 func (a *InsightXAdapter) GetProviderNameFA() string {
-	return "اینسایت استور (InsightX Store)"
+	return "InsightX Store"
 }
 
 func (a *InsightXAdapter) GetDefaultBaseURL() string {

@@ -18,7 +18,7 @@ func (a *JeroAccountsAdapter) GetProviderKey() string {
 }
 
 func (a *JeroAccountsAdapter) GetProviderNameFA() string {
-	return "جرو اکانتس (Jero Accounts)"
+	return "Jero Accounts"
 }
 
 func (a *JeroAccountsAdapter) GetDefaultBaseURL() string {

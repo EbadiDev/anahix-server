@@ -17,7 +17,7 @@ func (a *LootPagluAdapter) GetProviderKey() string {
 }
 
 func (a *LootPagluAdapter) GetProviderNameFA() string {
-	return "لوت پاگلو (Loot Paglu)"
+	return "Loot Paglu"
 }
 
 func (a *LootPagluAdapter) GetDefaultBaseURL() string {

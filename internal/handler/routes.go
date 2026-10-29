@@ -91,8 +91,12 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 
 		payments := api.Group("/payments")
 		{
-			payments.GET("", pubHandler.ListPaymentMethods)
+		 payments.GET("", pubHandler.ListPaymentMethods)
 		}
+
+		// System Announcements & Stock Alerts
+		api.GET("/announcements", pubHandler.ListAnnouncements)
+		api.POST("/stock-alerts", pubHandler.CreateStockAlert)
 
 		// Coupons
 		coupons := api.Group("/coupons")
@@ -143,6 +147,14 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			notifs.GET("", pubNotifHandler.ListNotifications)
 			notifs.POST("/:id/read", pubNotifHandler.MarkAsRead)
 			notifs.POST("/read-all", pubNotifHandler.MarkAllAsRead)
+		}
+
+		// Customer Favorites & Wishlist
+		favorites := api.Group("/favorites")
+		favorites.Use(middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret))
+		{
+			favorites.POST("/toggle", pubHandler.ToggleFavorite)
+			favorites.GET("", pubHandler.ListFavorites)
 		}
 
 		// Content Taxonomies (Categories, Templates & Service Targets)
@@ -245,12 +257,22 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.POST("/orders/:order_id/retry-bot", admHandler.RetryOrderBotFulfillment)
 				protected.GET("/orders/:order_id/invoice", admHandler.GetOrderInvoice)
 
+				// System Announcements Management
+				protected.GET("/announcements", admHandler.ListAnnouncements)
+				protected.POST("/announcements", admHandler.CreateAnnouncement)
+				protected.PUT("/announcements/:id", admHandler.UpdateAnnouncement)
+				protected.DELETE("/announcements/:id", admHandler.DeleteAnnouncement)
+
 				// Notification Metrics & BI
 				protected.GET("/notifications/stats", pubNotifHandler.GetAdminNotificationStats)
 
 				// Official Corporate Billing & Tax Settings
 				protected.GET("/settings/billing", admHandler.GetBillingSettings)
 				protected.POST("/settings/billing", admHandler.UpdateBillingSettings)
+
+				// Payment Gateways Management
+				protected.GET("/payments", admHandler.ListPaymentGateways)
+				protected.PUT("/payments/:id", admHandler.UpdatePaymentGateway)
 
 				// SMS Gateway (SMS.ir) Settings & Testing
 				protected.GET("/settings/sms", admHandler.GetSMSSettings)
@@ -273,6 +295,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				// Multi-Bot Providers & Fulfillment Hub
 				protected.GET("/providers/settings", admHandler.ListBotProviderSettings)
 				protected.POST("/providers/settings", admHandler.UpdateBotProviderSettings)
+				protected.POST("/providers/test", admHandler.TestBotProviderConnection)
 				protected.GET("/providers/catalog", admHandler.GetBotCatalog)
 				protected.POST("/providers/import", admHandler.ImportBotProduct)
 

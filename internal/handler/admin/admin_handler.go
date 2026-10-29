@@ -413,6 +413,18 @@ func (h *AdminHandler) UpdateBotProviderSettings(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "ok"}, err)
 }
 
+func (h *AdminHandler) TestBotProviderConnection(c *gin.Context) {
+	var req types.TestBotProviderConnectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.TestBotProviderConnection(&req)
+	result.HttpResult(c, resp, err)
+}
+
 func (h *AdminHandler) GetBotCatalog(c *gin.Context) {
 	providerKey := c.DefaultQuery("provider", "insightx")
 	forceRefresh := c.Query("refresh") == "true"
@@ -1052,6 +1064,100 @@ func (h *AdminHandler) UpdateOrderStatus(c *gin.Context) {
 	err := l.UpdateOrderStatus(orderID, &req, adminUsername)
 	result.HttpResult(c, gin.H{"updated": true, "message": "وضعیت سفارش با موفقیت به‌روزرسانی شد"}, err)
 }
+
+func (h *AdminHandler) ListPaymentGateways(c *gin.Context) {
+	var payments []model.Payment
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Order("sort asc, id asc").Find(&payments).Error; err != nil {
+		result.HttpResult(c, nil, err)
+		return
+	}
+	result.HttpResult(c, payments, nil)
+}
+
+func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
+	idStr := c.Param("id")
+	var p model.Payment
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&p, "id = ?", idStr).Error; err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("درگاه پرداخت یافت نشد"))
+		return
+	}
+
+	var req struct {
+		NameFA      *string `json:"name_fa"`
+		Icon        *string `json:"icon"`
+		Description *string `json:"description"`
+		Enable      *bool   `json:"enable"`
+		Sort        *int    `json:"sort"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	if req.NameFA != nil {
+		p.NameFA = *req.NameFA
+	}
+	if req.Icon != nil {
+		p.Icon = *req.Icon
+	}
+	if req.Description != nil {
+		p.Description = *req.Description
+	}
+	if req.Enable != nil {
+		p.Enable = *req.Enable
+	}
+	if req.Sort != nil {
+		p.Sort = *req.Sort
+	}
+
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).Save(&p).Error; err != nil {
+		result.HttpResult(c, nil, err)
+		return
+	}
+
+	result.HttpResult(c, p, nil)
+}
+
+func (h *AdminHandler) ListAnnouncements(c *gin.Context) {
+	var list []model.SystemAnnouncement
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Order("created_at desc").Find(&list).Error
+	result.HttpResult(c, list, err)
+}
+
+func (h *AdminHandler) CreateAnnouncement(c *gin.Context) {
+	var a model.SystemAnnouncement
+	if err := c.ShouldBindJSON(&a); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Create(&a).Error
+	result.HttpResult(c, a, err)
+}
+
+func (h *AdminHandler) UpdateAnnouncement(c *gin.Context) {
+	idStr := c.Param("id")
+	var a model.SystemAnnouncement
+	if err := h.svcCtx.DB.WithContext(c.Request.Context()).First(&a, "id = ?", idStr).Error; err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("اعلان یافت نشد"))
+		return
+	}
+	if err := c.ShouldBindJSON(&a); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Save(&a).Error
+	result.HttpResult(c, a, err)
+}
+
+func (h *AdminHandler) DeleteAnnouncement(c *gin.Context) {
+	idStr := c.Param("id")
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&model.SystemAnnouncement{}, "id = ?", idStr).Error
+	result.HttpResult(c, gin.H{"deleted": true}, err)
+}
+
 
 
 

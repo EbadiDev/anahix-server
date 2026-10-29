@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -472,15 +473,24 @@ func (l *DeliveryEngineLogic) UpdateBotProviderSettings(req *types.UpdateBotProv
 	}
 
 	upsertSetting := func(k, val string) error {
-		setting := model.SystemSetting{
-			Category: "bot_providers",
-			Key:      k,
-			Value:    val,
+		var setting model.SystemSetting
+		err := l.svcCtx.DB.WithContext(l.ctx).Where("`key` = ?", k).First(&setting).Error
+		if err == nil {
+			return l.svcCtx.DB.WithContext(l.ctx).Model(&setting).Updates(map[string]interface{}{
+				"category":   "bot_providers",
+				"value":      val,
+				"updated_at": time.Now(),
+			}).Error
 		}
-		return l.svcCtx.DB.WithContext(l.ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "category"}, {Name: "key"}},
-			DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"}),
-		}).Create(&setting).Error
+		newSetting := model.SystemSetting{
+			Category:  "bot_providers",
+			Key:       k,
+			Value:     val,
+			Type:      "string",
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		return l.svcCtx.DB.WithContext(l.ctx).Create(&newSetting).Error
 	}
 
 	if req.Enabled != nil {
@@ -513,6 +523,67 @@ func (l *DeliveryEngineLogic) UpdateBotProviderSettings(req *types.UpdateBotProv
 	}
 
 	return nil
+}
+
+func (l *DeliveryEngineLogic) TestBotProviderConnection(req *types.TestBotProviderConnectionRequest) (*types.TestBotProviderConnectionResponse, error) {
+	if req.Key == "" {
+		return nil, xerr.NewErrCode(xerr.InvalidParams)
+	}
+
+	effectiveRate := l.getEffectiveRate()
+	adapter, err := l.svcCtx.FulfillmentManager.GetAdapter(req.Key)
+	if err != nil {
+		return &types.TestBotProviderConnectionResponse{
+			Success:     false,
+			IsConnected: false,
+			Message:     fmt.Sprintf("تامین‌کننده ربات %s یافت نشد", req.Key),
+		}, nil
+	}
+
+	apiKey := req.APIKey
+	if apiKey == "" {
+		var setting model.SystemSetting
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("`key` = ?", "provider_"+req.Key+"_api_key").First(&setting).Error; err == nil {
+			apiKey = setting.Value
+		}
+	}
+
+	if apiKey == "" {
+		return &types.TestBotProviderConnectionResponse{
+			Success:     false,
+			IsConnected: false,
+			Message:     "کلید API وارد نشده است. لطفاً ابتدا کلید را وارد نمایید.",
+		}, nil
+	}
+
+	baseURL := req.BaseURL
+	if baseURL == "" {
+		baseURL = adapter.GetDefaultBaseURL()
+	}
+
+	cfg := fulfillment.ProviderConfig{
+		Key:     req.Key,
+		APIKey:  apiKey,
+		BaseURL: baseURL,
+	}
+
+	bal, err := adapter.GetBalance(http.DefaultClient, cfg)
+	if err != nil {
+		return &types.TestBotProviderConnectionResponse{
+			Success:     false,
+			IsConnected: false,
+			Message:     fmt.Sprintf("خطا در اتصال به ربات: %v", err),
+		}, nil
+	}
+
+	balanceToman := int64(bal.BalanceUSD * float64(effectiveRate))
+	return &types.TestBotProviderConnectionResponse{
+		Success:      true,
+		IsConnected:  true,
+		BalanceUSD:   bal.BalanceUSD,
+		BalanceToman: balanceToman,
+		Message:      fmt.Sprintf("اتصال موفق و فعال! موجودی زنده: $%.2f USD (%d تومان)", bal.BalanceUSD, balanceToman),
+	}, nil
 }
 
 func (l *DeliveryEngineLogic) GetBotCatalog(providerKey string, forceRefresh bool) ([]fulfillment.ProviderProductDTO, error) {

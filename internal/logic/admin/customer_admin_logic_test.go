@@ -23,6 +23,7 @@ func setupTestCustomerAdminDB(t *testing.T) (*svc.ServiceContext, model.Customer
 
 	err = db.AutoMigrate(
 		&model.Customer{},
+		&model.Product{},
 		&model.Order{},
 		&model.OrderItem{},
 		&model.VirtualNumberOrder{},

@@ -387,6 +387,40 @@ func (l *OrderDeskLogic) UpdateOrderStatus(orderIDStr string, req *types.AdminUp
 		order.PaidAt = &now
 	}
 
+	// Auto-decrement manual stock when an unpaid order transitions to paid or completed
+	if (newStatus == model.OrderPaid || newStatus == model.OrderCompleted) &&
+		(oldStatus == model.OrderPendingPayment || oldStatus == "") {
+		var orderItems []model.OrderItem
+		_ = l.svcCtx.DB.WithContext(l.ctx).Where("order_id = ?", order.ID).Find(&orderItems).Error
+		for _, oi := range orderItems {
+			var p model.Product
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", oi.ProductID).First(&p).Error; err == nil {
+				if p.StockMode == "manual" {
+					newStock := p.ManualStock - oi.Quantity
+					if newStock < 0 {
+						newStock = 0
+					}
+					_ = l.svcCtx.DB.WithContext(l.ctx).Model(&p).Update("manual_stock", newStock).Error
+				}
+			}
+		}
+	}
+
+	// Auto-restore manual stock when a previously paid order is cancelled or refunded
+	if (newStatus == model.OrderCancelled || newStatus == model.OrderRefunded) &&
+		(oldStatus == model.OrderPaid || oldStatus == model.OrderCompleted || oldStatus == model.OrderInQueue || oldStatus == model.OrderProcessing) {
+		var orderItems []model.OrderItem
+		_ = l.svcCtx.DB.WithContext(l.ctx).Where("order_id = ?", order.ID).Find(&orderItems).Error
+		for _, oi := range orderItems {
+			var p model.Product
+			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", oi.ProductID).First(&p).Error; err == nil {
+				if p.StockMode == "manual" {
+					_ = l.svcCtx.DB.WithContext(l.ctx).Model(&p).Update("manual_stock", p.ManualStock+oi.Quantity).Error
+				}
+			}
+		}
+	}
+
 	// Refund to wallet handling if requested
 	if req.RefundToWallet && (newStatus == model.OrderCancelled || newStatus == model.OrderRefunded) {
 		var customer model.Customer

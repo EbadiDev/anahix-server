@@ -40,21 +40,28 @@ type ProductListItem struct {
 	IsActive            bool     `json:"is_active"`
 	GroupTag            string   `json:"group_tag,omitempty"`
 	GroupTitleFA        string   `json:"group_title_fa,omitempty"`
+	StockDisplayMode    string   `json:"stock_display_mode,omitempty"`
+	StockMode           string   `json:"stock_mode,omitempty"`
+	OutOfStockText      string   `json:"out_of_stock_text,omitempty"`
 	Features            []string `json:"features,omitempty"`
 }
 
 type ProductPlan struct {
-	ID                 string   `json:"id"`
-	Title              string   `json:"title"`
-	DurationDays       int      `json:"duration_days"`
-	DurationText       string   `json:"duration_text"`
-	PriceToman         int64    `json:"price_toman"`
-	OriginalPriceToman int64    `json:"original_price_toman,omitempty"`
-	BaseCostUSD        float64  `json:"base_cost_usd,omitempty"`
-	Badge              string   `json:"badge,omitempty"`
-	IsDefault          bool     `json:"is_default"`
-	DeliveryType       string   `json:"delivery_type,omitempty"`
-	Features           []string `json:"features,omitempty"`
+	ID                   string   `json:"id"`
+	Title                string   `json:"title"`
+	DurationDays         int      `json:"duration_days"`
+	DurationText         string   `json:"duration_text"`
+	PriceToman           int64    `json:"price_toman"`
+	OriginalPriceToman   int64    `json:"original_price_toman,omitempty"`
+	BaseCostUSD          float64  `json:"base_cost_usd,omitempty"`
+	Badge                string   `json:"badge,omitempty"`
+	IsDefault            bool     `json:"is_default"`
+	DeliveryType         string   `json:"delivery_type,omitempty"`
+	DeliveryStrategy     string   `json:"delivery_strategy,omitempty"`
+	ExternalProvider     string   `json:"external_provider,omitempty"`
+	ExternalProductID    int64    `json:"external_product_id,omitempty"`
+	ExternalProductIDStr string   `json:"external_product_id_str,omitempty"`
+	Features             []string `json:"features,omitempty"`
 }
 
 type ComparisonColumn struct {
@@ -462,6 +469,20 @@ type RetryBotFulfillmentResponse struct {
 	Message          string `json:"message"`
 	Status           string `json:"status"`
 	DeliveredPayload string `json:"delivered_payload,omitempty"`
+}
+
+type TestBotProviderConnectionRequest struct {
+	Key     string `json:"key" binding:"required"`
+	APIKey  string `json:"api_key"`
+	BaseURL string `json:"base_url"`
+}
+
+type TestBotProviderConnectionResponse struct {
+	Success      bool    `json:"success"`
+	IsConnected  bool    `json:"is_connected"`
+	BalanceUSD   float64 `json:"balance_usd"`
+	BalanceToman int64   `json:"balance_toman"`
+	Message      string  `json:"message"`
 }
 
 type ImportBotProductRequest struct {
@@ -1334,11 +1355,17 @@ type AdminUpdateProductRequest struct {
 	OperatingHours      *string                `json:"operating_hours"`
 	BaseCostUSD         *float64               `json:"base_cost_usd"`
 	PriceToman          *int64                 `json:"price_toman"`
+	OriginalPriceToman  *int64                 `json:"original_price_toman"`
+	DiscountPercent     *float64               `json:"discount_percent"`
 	IsActive            *bool                  `json:"is_active"`
 	Instructions        *string                `json:"instructions"`
 	GroupTag            *string                `json:"group_tag"`
 	GroupTitleFA        *string                `json:"group_title_fa"`
 	DeliveryStrategy    *string                `json:"delivery_strategy"`
+	StockMode           *string                `json:"stock_mode"`
+	ManualStock         *int                   `json:"manual_stock"`
+	StockDisplayMode    *string                `json:"stock_display_mode"`
+	OutOfStockText      *string                `json:"out_of_stock_text"`
 	MetaTitle           *string                `json:"meta_title"`
 	MetaDescription     *string                `json:"meta_description"`
 	OgImageURL          *string                `json:"og_image_url"`

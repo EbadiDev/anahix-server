@@ -38,11 +38,19 @@ func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
 	result := make([]types.ProductListItem, len(products))
 	for i, p := range products {
 		var availableStock int64 = 0
-		if p.DeliveryType == model.DeliveryInstant {
+		if p.StockMode == "always_in_stock" {
+			availableStock = 999
+		} else if p.StockMode == "manual" {
+			availableStock = int64(p.ManualStock)
+		} else if p.StockMode == "out_of_stock" {
+			availableStock = 0
+		} else if p.DeliveryType == model.DeliveryInstant {
 			l.svcCtx.DB.WithContext(l.ctx).
 				Model(&model.InventoryItem{}).
 				Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
 				Count(&availableStock)
+		} else {
+			availableStock = 99
 		}
 
 		var features []string
@@ -94,6 +102,9 @@ func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
 			IsActive:            p.IsActive,
 			GroupTag:            p.GroupTag,
 			GroupTitleFA:        p.GroupTitleFA,
+			StockDisplayMode:    p.StockDisplayMode,
+			StockMode:           p.StockMode,
+			OutOfStockText:      p.OutOfStockText,
 			Features:            features,
 		}
 	}
@@ -111,11 +122,19 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	}
 
 	var availableStock int64 = 0
-	if p.DeliveryType == model.DeliveryInstant {
+	if p.StockMode == "always_in_stock" {
+		availableStock = 999
+	} else if p.StockMode == "manual" {
+		availableStock = int64(p.ManualStock)
+	} else if p.StockMode == "out_of_stock" {
+		availableStock = 0
+	} else if p.DeliveryType == model.DeliveryInstant {
 		l.svcCtx.DB.WithContext(l.ctx).
 			Model(&model.InventoryItem{}).
 			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
 			Count(&availableStock)
+	} else {
+		availableStock = 99
 	}
 
 	// 1. Features
@@ -169,14 +188,14 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	// 6. SEO
 	metaTitle := p.MetaTitle
 	if metaTitle == "" {
-		metaTitle = fmt.Sprintf("خرید %s | تحویل قانونی و آنی - آناهیکس", p.TitleFA)
+		metaTitle = fmt.Sprintf("خرید %s | تحویل قانونی و آنی", p.TitleFA)
 	}
 	metaDesc := p.MetaDescription
 	if metaDesc == "" {
 		if p.Description != "" {
 			metaDesc = p.Description
 		} else {
-			metaDesc = fmt.Sprintf("خرید اشتراک قانونی %s با بهترین قیمت تومانی، تحویل فوری، گارانتی عدم قطعی و پشتیبانی ۲۴ ساعته در آناهیکس.", p.TitleFA)
+			metaDesc = fmt.Sprintf("خرید اشتراک قانونی %s با بهترین قیمت تومانی، تحویل فوری، گارانتی عدم قطعی و پشتیبانی ۲۴ ساعته.", p.TitleFA)
 		}
 	}
 	ogImg := p.OgImageURL
@@ -452,7 +471,7 @@ func defaultGuideForProduct(p *model.Product) []types.ActivationStep {
 				Title:       "ورود و استفاده نامحدود",
 				Description: "روی لینک کلیک کرده یا مشخصات را در وب‌سایت مرجع وارد کنید و بلافاصله از تمامی امکانات پریمیوم لذت ببرید.",
 				Icon:        "sparkles",
-				Tip:         "در صورت داشتن هرگونه سوال، تیم فنی آناهیکس آماده پشتیبانی است.",
+				Tip:         "در صورت داشتن هرگونه سوال، تیم پشتیبانی فنی آماده راهنمایی و پاسخگویی است.",
 			},
 		}
 	}

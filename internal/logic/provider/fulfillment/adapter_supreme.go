@@ -18,7 +18,7 @@ func (a *SupremeLeaderAdapter) GetProviderKey() string {
 }
 
 func (a *SupremeLeaderAdapter) GetProviderNameFA() string {
-	return "سوپریم لیدر شاپ (Supreme Leader Shop)"
+	return "Supreme Leader Shop"
 }
 
 func (a *SupremeLeaderAdapter) GetDefaultBaseURL() string {

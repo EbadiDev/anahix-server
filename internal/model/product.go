@@ -40,6 +40,8 @@ type Product struct {
 	// Reseller pricing
 	BaseCostUSD float64 `gorm:"type:decimal(10,2);default:0" json:"base_cost_usd"`
 	PriceToman  int64   `gorm:"not null" json:"price_toman"` // In Iranian Toman (e.g. 1,450,000)
+	OriginalPriceToman int64   `gorm:"default:0" json:"original_price_toman"`
+	DiscountPercent    float64 `gorm:"type:decimal(5,2);default:0" json:"discount_percent"`
 
 	IsActive     bool   `gorm:"default:true;index" json:"is_active"`
 	Instructions string `gorm:"type:text" json:"instructions"`
@@ -81,6 +83,9 @@ type Product struct {
 	PrePurchaseSnoozeDays int    `gorm:"default:7" json:"pre_purchase_snooze_days"`
 
 	// Merchandising & Stock Display Control
+	StockMode             string `gorm:"size:50;default:'auto'" json:"stock_mode"`
+	ManualStock           int    `gorm:"default:0" json:"manual_stock"`
+	OutOfStockText        string `gorm:"size:255;default:'در حال تهیه و تامین مجدد'" json:"out_of_stock_text"`
 	StockDisplayMode      string `gorm:"size:30;default:'show_exact'" json:"stock_display_mode"`
 	ParentCategorySlug    string `gorm:"size:100;index" json:"parent_category_slug"`
 	CategorySlug          string `gorm:"size:100;index" json:"category_slug"`

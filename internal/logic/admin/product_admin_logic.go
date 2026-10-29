@@ -35,11 +35,19 @@ func (l *ProductAdminLogic) ListProducts() ([]model.Product, error) {
 
 	for i := range products {
 		var stock int64
-		if products[i].DeliveryType == model.DeliveryInstant {
+		if products[i].StockMode == "always_in_stock" {
+			stock = 999
+		} else if products[i].StockMode == "manual" {
+			stock = int64(products[i].ManualStock)
+		} else if products[i].StockMode == "out_of_stock" {
+			stock = 0
+		} else if products[i].DeliveryType == model.DeliveryInstant {
 			l.svcCtx.DB.WithContext(l.ctx).
 				Model(&model.InventoryItem{}).
 				Where("product_id = ? AND status = ?", products[i].ID, model.InventoryAvailable).
 				Count(&stock)
+		} else {
+			stock = 99
 		}
 		products[i].AvailableStock = stock
 	}
@@ -70,11 +78,19 @@ func (l *ProductAdminLogic) GetProduct(prodID uuid.UUID) (*model.Product, error)
 	}
 
 	var stock int64
-	if p.DeliveryType == model.DeliveryInstant {
+	if p.StockMode == "always_in_stock" {
+		stock = 999
+	} else if p.StockMode == "manual" {
+		stock = int64(p.ManualStock)
+	} else if p.StockMode == "out_of_stock" {
+		stock = 0
+	} else if p.DeliveryType == model.DeliveryInstant {
 		l.svcCtx.DB.WithContext(l.ctx).
 			Model(&model.InventoryItem{}).
 			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
 			Count(&stock)
+	} else {
+		stock = 99
 	}
 	p.AvailableStock = stock
 
@@ -123,6 +139,12 @@ func (l *ProductAdminLogic) UpdateProduct(prodID uuid.UUID, req *types.AdminUpda
 	if req.PriceToman != nil {
 		existing.PriceToman = *req.PriceToman
 	}
+	if req.OriginalPriceToman != nil {
+		existing.OriginalPriceToman = *req.OriginalPriceToman
+	}
+	if req.DiscountPercent != nil {
+		existing.DiscountPercent = *req.DiscountPercent
+	}
 	if req.IsActive != nil {
 		existing.IsActive = *req.IsActive
 	}
@@ -137,6 +159,18 @@ func (l *ProductAdminLogic) UpdateProduct(prodID uuid.UUID, req *types.AdminUpda
 	}
 	if req.DeliveryStrategy != nil {
 		existing.DeliveryStrategy = *req.DeliveryStrategy
+	}
+	if req.StockMode != nil {
+		existing.StockMode = *req.StockMode
+	}
+	if req.ManualStock != nil {
+		existing.ManualStock = *req.ManualStock
+	}
+	if req.StockDisplayMode != nil {
+		existing.StockDisplayMode = *req.StockDisplayMode
+	}
+	if req.OutOfStockText != nil {
+		existing.OutOfStockText = *req.OutOfStockText
 	}
 	if req.MetaTitle != nil {
 		existing.MetaTitle = *req.MetaTitle

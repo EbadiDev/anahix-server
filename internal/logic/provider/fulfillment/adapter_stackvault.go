@@ -17,7 +17,7 @@ func (a *StackVaultAdapter) GetProviderKey() string {
 }
 
 func (a *StackVaultAdapter) GetProviderNameFA() string {
-	return "استک‌ولت (StackVault Digital)"
+	return "StackVault Digital"
 }
 
 func (a *StackVaultAdapter) GetDefaultBaseURL() string {

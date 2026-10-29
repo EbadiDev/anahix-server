@@ -57,21 +57,27 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		Product    model.Product
 		Quantity   int
 		PriceToman int64
+		PlanID     string
+		Plan       *types.ProductPlan
 	}
 	var entries []itemEntry
 
-	resolvePlanPrice := func(prod *model.Product, planID string) int64 {
+	resolvePlan := func(prod *model.Product, planID string) (int64, *types.ProductPlan) {
 		if planID != "" && prod.PlansJSON != "" {
 			var plans []types.ProductPlan
 			if err := json.Unmarshal([]byte(prod.PlansJSON), &plans); err == nil {
 				for _, pl := range plans {
-					if pl.ID == planID && pl.PriceToman > 0 {
-						return pl.PriceToman
+					if pl.ID == planID {
+						price := prod.PriceToman
+						if pl.PriceToman > 0 {
+							price = pl.PriceToman
+						}
+						return price, &pl
 					}
 				}
 			}
 		}
-		return prod.PriceToman
+		return prod.PriceToman, nil
 	}
 
 	if len(req.Items) > 0 {
@@ -86,8 +92,20 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			}
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				planPrice := resolvePlanPrice(&prod, it.PlanID)
-				entries = append(entries, itemEntry{Product: prod, Quantity: qty, PriceToman: planPrice})
+				if prod.StockMode == "out_of_stock" {
+					return nil, xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است", prod.TitleFA))
+				}
+				if prod.StockMode == "manual" && prod.ManualStock < qty {
+					return nil, xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+				}
+				planPrice, planObj := resolvePlan(&prod, it.PlanID)
+				entries = append(entries, itemEntry{
+					Product:    prod,
+					Quantity:   qty,
+					PriceToman: planPrice,
+					PlanID:     it.PlanID,
+					Plan:       planObj,
+				})
 			}
 		}
 	} else if req.ProductID != "" {
@@ -95,8 +113,20 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		if err == nil {
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				planPrice := resolvePlanPrice(&prod, req.PlanID)
-				entries = append(entries, itemEntry{Product: prod, Quantity: 1, PriceToman: planPrice})
+				if prod.StockMode == "out_of_stock" {
+					return nil, xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است", prod.TitleFA))
+				}
+				if prod.StockMode == "manual" && prod.ManualStock < 1 {
+					return nil, xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد", prod.TitleFA))
+				}
+				planPrice, planObj := resolvePlan(&prod, req.PlanID)
+				entries = append(entries, itemEntry{
+					Product:    prod,
+					Quantity:   1,
+					PriceToman: planPrice,
+					PlanID:     req.PlanID,
+					Plan:       planObj,
+				})
 			}
 		}
 	}
@@ -226,8 +256,32 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		for _, entry := range entries {
 			prod := entry.Product
 			effectiveStrategy := prod.DeliveryStrategy
+			effectiveProvider := prod.ExternalProvider
+			externalProdID := prod.ExternalProductID
+			externalProdIDStr := prod.ExternalProductIDStr
+			costUSD := prod.BaseCostUSD
+
+			// Plan-level granular override (e.g. Gemini 6m instant vs 18m manual or different bot)
+			if entry.Plan != nil {
+				if entry.Plan.DeliveryStrategy != "" {
+					effectiveStrategy = entry.Plan.DeliveryStrategy
+				}
+				if entry.Plan.ExternalProvider != "" {
+					effectiveProvider = entry.Plan.ExternalProvider
+				}
+				if entry.Plan.ExternalProductIDStr != "" {
+					externalProdIDStr = entry.Plan.ExternalProductIDStr
+				}
+				if entry.Plan.ExternalProductID > 0 {
+					externalProdID = entry.Plan.ExternalProductID
+				}
+				if entry.Plan.BaseCostUSD > 0 {
+					costUSD = entry.Plan.BaseCostUSD
+				}
+			}
+
 			if effectiveStrategy == "" || effectiveStrategy == "auto" {
-				if prod.ExternalProductID > 0 {
+				if externalProdID > 0 || externalProdIDStr != "" {
 					effectiveStrategy = "third_party_instant"
 				} else if prod.DeliveryType == model.DeliveryInstant {
 					effectiveStrategy = "local_inventory"
@@ -244,7 +298,6 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 					deliveredPayloadType = "license_code"
 				}
 				externalOrderID := ""
-				externalProvider := prod.ExternalProvider
 				instructions := prod.Instructions
 
 				if effectiveStrategy == "local_inventory" {
@@ -277,8 +330,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 							deliveredPayload = dec
 						}
 					}
-				} else if effectiveStrategy == "third_party_instant" && isPaid && (prod.ExternalProductID > 0 || prod.ExternalProductIDStr != "") {
-					providerKey := prod.ExternalProvider
+				} else if effectiveStrategy == "third_party_instant" && isPaid && (externalProdID > 0 || externalProdIDStr != "") {
+					providerKey := effectiveProvider
 					if providerKey == "" || providerKey == "third_party_api" {
 						providerKey = fulfillment.ProviderInsightX
 					}
@@ -301,14 +354,14 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 					}
 
 					if apiKey != "" {
-						prodIDStr := prod.ExternalProductIDStr
-						if prodIDStr == "" && prod.ExternalProductID > 0 {
-							prodIDStr = strconv.FormatInt(prod.ExternalProductID, 10)
+						prodIDStr := externalProdIDStr
+						if prodIDStr == "" && externalProdID > 0 {
+							prodIDStr = strconv.FormatInt(externalProdID, 10)
 						}
 
 						botReq := fulfillment.ProviderOrderRequest{
 							ProductID:        prodIDStr,
-							NumericID:        prod.ExternalProductID,
+							NumericID:        externalProdID,
 							Quantity:         1,
 							IdempotencyKey:   fmt.Sprintf("%s_%d", orderID.String(), q),
 							CustomerEmail:    req.CustomerAccountEmail,
@@ -357,7 +410,6 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 				}
 				effectiveRate, _, _ := exchangerate.GetDefaultClient().ResolveRate(ratePriority, usdRate)
 
-				costUSD := prod.BaseCostUSD
 				costToman := int64(costUSD * float64(effectiveRate))
 
 				customerInput := ""
@@ -381,7 +433,7 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 					DeliveredPayload:     deliveredPayload,
 					DeliveredPayloadType: deliveredPayloadType,
 					ExternalOrderID:      externalOrderID,
-					ExternalProvider:     externalProvider,
+					ExternalProvider:     effectiveProvider,
 					CustomerInputData:    customerInput,
 					Instructions:         instructions,
 				})
@@ -405,6 +457,20 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 
 		if isPaid {
 			paidAtTime = &now
+
+			// Decrement manual stock for products with manual stock mode
+			for _, entry := range entries {
+				if entry.Product.StockMode == "manual" {
+					var currentProd model.Product
+					if err := tx.Where("id = ?", entry.Product.ID).First(&currentProd).Error; err == nil {
+						newStock := currentProd.ManualStock - entry.Quantity
+						if newStock < 0 {
+							newStock = 0
+						}
+						_ = tx.Model(&currentProd).Update("manual_stock", newStock).Error
+					}
+				}
+			}
 
 			// Check if all items are instantly fulfilled
 			allInstantDelivered := true
