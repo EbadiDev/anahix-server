@@ -24,7 +24,7 @@ func NewPaymentLogic(ctx context.Context, svcCtx *svc.ServiceContext) *PaymentLo
 func (l *PaymentLogic) ListPaymentMethods() ([]types.PaymentMethodItem, error) {
 	var payments []model.Payment
 	err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("enable = ?", true).
+		Where("display_mode != ? AND (enable = ? OR display_mode = ?)", "hidden", true, "disabled_visible").
 		Order("sort asc, id asc").
 		Find(&payments).Error
 	if err != nil {
@@ -33,6 +33,14 @@ func (l *PaymentLogic) ListPaymentMethods() ([]types.PaymentMethodItem, error) {
 
 	result := make([]types.PaymentMethodItem, len(payments))
 	for i, p := range payments {
+		mode := p.DisplayMode
+		if mode == "" {
+			if p.Enable {
+				mode = "active"
+			} else {
+				mode = "hidden"
+			}
+		}
 		result[i] = types.PaymentMethodItem{
 			ID:          p.Id,
 			Name:        p.Name,
@@ -40,6 +48,8 @@ func (l *PaymentLogic) ListPaymentMethods() ([]types.PaymentMethodItem, error) {
 			Platform:    string(p.Platform),
 			Icon:        p.Icon,
 			Description: p.Description,
+			Enable:      mode == "active",
+			DisplayMode: mode,
 		}
 	}
 

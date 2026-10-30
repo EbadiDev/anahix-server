@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
+	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
@@ -66,6 +67,10 @@ func (l *InventoryLogic) BulkImport(req *types.BulkImportInventoryRequest) (*typ
 	if err := l.svcCtx.DB.WithContext(l.ctx).CreateInBatches(itemsToInsert, 100).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
+
+	// Trigger Stock Alert SMS for waiting customers
+	notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+	notifier.NotifyRestock(l.ctx, product.ID.String(), product.TitleFA, product.Slug)
 
 	return &types.BulkImportInventoryResponse{
 		ImportedCount: len(itemsToInsert),

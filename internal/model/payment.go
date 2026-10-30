@@ -24,6 +24,7 @@ type Payment struct {
 	Config      string          `gorm:"type:text;not null;default:'{}'" json:"config"` // JSON configuration (merchant_id, card_number, etc.)
 	Description string          `gorm:"type:text" json:"description"`
 	Enable      bool            `gorm:"not null;default:false;index" json:"enable"`
+	DisplayMode string          `gorm:"size:30;not null;default:'active'" json:"display_mode"` // "active", "disabled_visible", "hidden"
 	Sort        int             `gorm:"default:0" json:"sort"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`

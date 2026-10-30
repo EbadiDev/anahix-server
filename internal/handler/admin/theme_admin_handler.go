@@ -17,6 +17,7 @@ func NewThemeAdminHandler(svcCtx *svc.ServiceContext) *ThemeAdminHandler {
 }
 
 func (h *ThemeAdminHandler) GetSettings(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	l := admin.NewThemeAdminLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.GetSettings()
 	result.HttpResult(c, resp, err)

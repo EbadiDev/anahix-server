@@ -244,3 +244,55 @@ func (n *SMSPatternNotifier) SendRenewalReminderAsync(mobile string, serviceName
 		_, _ = n.svcCtx.SMSIRClient.SendBulk(bgCtx, apiKey, lineNum, fallbackText, []string{normMobile})
 	}(mobile, serviceName, daysRemaining, renewURL)
 }
+
+// NotifyRestock dispatches SMS alerts to all customers who requested restock notifications
+func (n *SMSPatternNotifier) NotifyRestock(ctx context.Context, productID string, productTitle string, slug string) {
+	go func(pID, pTitle, pSlug string) {
+		bgCtx := context.Background()
+		var alerts []model.StockAlert
+		if err := n.svcCtx.DB.WithContext(bgCtx).
+			Where("(product_id = ? OR product_id = ?) AND notified = ?", pID, pSlug, false).
+			Find(&alerts).Error; err != nil || len(alerts) == 0 {
+			return
+		}
+
+		apiKey, lineNum, templates := n.getSMSConfig(bgCtx)
+		if apiKey == "" {
+			return
+		}
+
+		brandName := "پلی شاپ"
+		var brandSetting model.SystemSetting
+		if err := n.svcCtx.DB.WithContext(bgCtx).Where("key = ?", "site_name_fa").First(&brandSetting).Error; err == nil && brandSetting.Value != "" {
+			brandName = brandSetting.Value
+		}
+
+		templateID := templates["restock"]
+		if templateID <= 0 {
+			templateID = 100004
+		}
+
+		for _, alert := range alerts {
+			normMobile := smsir.NormalizeMobile(alert.Mobile)
+			if normMobile == "" {
+				continue
+			}
+
+			// Try pattern first
+			params := []smsir.VerifyParameter{
+				{Name: "Brand", Value: brandName},
+				{Name: "Product", Value: pTitle},
+			}
+			_, pErr := n.svcCtx.SMSIRClient.SendPattern(bgCtx, apiKey, normMobile, templateID, params)
+			if pErr != nil {
+				// Fallback to bulk SMS
+				text := fmt.Sprintf("%s: کاربر گرامی، محصول «%s» موجود شد و هم‌اکنون آماده سفارش است.\nمشاهده و خرید: anahix.ir/products/%s", brandName, pTitle, pSlug)
+				_, _ = n.svcCtx.SMSIRClient.SendBulk(bgCtx, apiKey, lineNum, text, []string{normMobile})
+			}
+
+			// Mark alert as notified
+			_ = n.svcCtx.DB.WithContext(bgCtx).Model(&alert).Update("notified", true).Error
+			log.Printf("📱 [StockAlert] Sent restock SMS to %s for product %s", normMobile, pTitle)
+		}
+	}(productID, productTitle, slug)
+}

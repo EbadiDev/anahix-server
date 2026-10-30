@@ -28,8 +28,9 @@ type SystemAnnouncement struct {
 	TargetPages string         `gorm:"size:255;default:'all'" json:"target_pages"` // "all", "/", "/category", "/products", "/profile"
 	DisplayType string         `gorm:"size:50;default:'bell_and_popup'" json:"display_type"` // "bell_only", "popup_first_load", "banner_top", "bell_and_popup"
 	Severity    string         `gorm:"size:30;default:'info'" json:"severity"` // "info", "discount", "warning", "success"
-	IsActive    bool           `gorm:"default:true;index" json:"is_active"`
-	ExpiresAt   *time.Time     `json:"expires_at,omitempty"`
+	IsActive        bool           `gorm:"default:true;index" json:"is_active"`
+	DismissDuration string         `gorm:"size:50;default:'7d'" json:"dismiss_duration,omitempty"` // "every_load", "24h", "7d", "30d", "forever"
+	ExpiresAt       *time.Time     `json:"expires_at,omitempty"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`

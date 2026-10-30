@@ -16,6 +16,7 @@ func NewThemeHandler(svcCtx *svc.ServiceContext) *ThemeHandler {
 }
 
 func (h *ThemeHandler) GetActiveTheme(c *gin.Context) {
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	l := public.NewThemeLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.GetActiveTheme()
 	result.HttpResult(c, resp, err)

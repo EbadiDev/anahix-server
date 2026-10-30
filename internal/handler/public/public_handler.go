@@ -24,8 +24,9 @@ func NewPublicHandler(svcCtx *svc.ServiceContext) *PublicHandler {
 }
 
 func (h *PublicHandler) ListProducts(c *gin.Context) {
+	q := c.Query("search")
 	l := public.NewCatalogLogic(c.Request.Context(), h.svcCtx)
-	resp, err := l.ListProducts()
+	resp, err := l.ListProducts(q)
 	result.HttpResult(c, resp, err)
 }
 
@@ -384,7 +385,7 @@ func (h *PublicHandler) ListFavorites(c *gin.Context) {
 
 	var list []model.UserFavorite
 	db := h.svcCtx.DB.WithContext(c.Request.Context())
-	err = db.Where("customer_id = ?", custID).Order("created_at desc").Find(&list).Error
+	err = db.Where("customer_id = ? AND target_type IN ('article', 'guide')", custID).Order("created_at desc").Find(&list).Error
 	result.HttpResult(c, list, err)
 }
 

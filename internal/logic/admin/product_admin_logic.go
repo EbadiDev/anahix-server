@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
+	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
@@ -102,6 +103,8 @@ func (l *ProductAdminLogic) UpdateProduct(prodID uuid.UUID, req *types.AdminUpda
 	if err := l.svcCtx.DB.WithContext(l.ctx).First(&existing, "id = ?", prodID).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.ProductNotFound)
 	}
+
+	wasOutOfStock := existing.StockMode == "out_of_stock" || (existing.StockMode == "manual" && existing.ManualStock <= 0)
 
 	if req.Title != nil {
 		existing.Title = *req.Title
@@ -242,6 +245,13 @@ func (l *ProductAdminLogic) UpdateProduct(prodID uuid.UUID, req *types.AdminUpda
 
 	if err := l.svcCtx.DB.WithContext(l.ctx).Save(&existing).Error; err != nil {
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	// Trigger Stock Alert SMS if restocked
+	isNowInStock := (existing.StockMode != "out_of_stock") && (existing.StockMode != "manual" || existing.ManualStock > 0)
+	if wasOutOfStock && isNowInStock {
+		notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+		notifier.NotifyRestock(l.ctx, existing.ID.String(), existing.TitleFA, existing.Slug)
 	}
 
 	return &existing, nil

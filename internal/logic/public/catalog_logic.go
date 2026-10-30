@@ -25,12 +25,14 @@ func NewCatalogLogic(ctx context.Context, svcCtx *svc.ServiceContext) *CatalogLo
 	}
 }
 
-func (l *CatalogLogic) ListProducts() ([]types.ProductListItem, error) {
+func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, error) {
 	var products []model.Product
-	err := l.svcCtx.DB.WithContext(l.ctx).
-		Where("is_active = ?", true).
-		Order("created_at desc").
-		Find(&products).Error
+	db := l.svcCtx.DB.WithContext(l.ctx).Where("is_active = ?", true)
+	if strings.TrimSpace(search) != "" {
+		s := "%" + strings.TrimSpace(search) + "%"
+		db = db.Where("title_fa LIKE ? OR title LIKE ? OR group_tag LIKE ? OR slug LIKE ?", s, s, s, s)
+	}
+	err := db.Order("created_at desc").Find(&products).Error
 	if err != nil {
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}

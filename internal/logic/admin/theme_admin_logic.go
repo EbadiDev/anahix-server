@@ -33,6 +33,9 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 
 	res := &types.ThemeSettingsResponse{
 		DefaultTheme:        "graphite",
+		SiteNameFA:          "",
+		SiteNameEN:          "",
+		SiteSubtitle:        "",
 		EventName:           "عادی",
 		EventActive:         false,
 		PrimaryColor:        "#2563eb",
@@ -42,8 +45,12 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 		EventIcon:           "sparkles",
 		AuthGoogleEnabled:   true,
 		AuthGithubEnabled:   true,
-		AuthPasswordEnabled: true,
-		AuthOTPRequired:     false,
+		AuthPasswordEnabled:          true,
+		AuthEmailEnabled:             true,
+		AuthOTPRequired:              false,
+		TrustTickerEnabled:           true,
+		ScrollingAnnouncementEnabled: true,
+		ScrollingAnnouncementText:    "🔥 تحویل آنی و خودکار ۰ ثانیه‌ای لایسنس‌ها برقرار است • پشتیبانی ۲۴ ساعته متخصصین هوش مصنوعی در تلگرام",
 	}
 
 	for _, s := range settings {
@@ -82,25 +89,59 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			res.AuthGithubEnabled = s.Value != "false" && s.Value != "0"
 		case "auth_password_enabled":
 			res.AuthPasswordEnabled = s.Value != "false" && s.Value != "0"
+		case "auth_email_enabled":
+			res.AuthEmailEnabled = s.Value != "false" && s.Value != "0"
 		case "auth_otp_required":
 			res.AuthOTPRequired = s.Value == "true" || s.Value == "1"
-		case "checkout_channel_section_enabled":
-			res.CheckoutChannelSectionEnabled = s.Value != "false" && s.Value != "0"
-		case "checkout_channel_sms_enabled":
-			res.CheckoutChannelSMSEnabled = s.Value != "false" && s.Value != "0"
-		case "checkout_channel_email_enabled":
-			res.CheckoutChannelEmailEnabled = s.Value != "false" && s.Value != "0"
-		case "checkout_channel_title":
+		case "trust_ticker_enabled":
+			res.TrustTickerEnabled = s.Value != "false" && s.Value != "0"
+		case "trust_ticker_json":
+			res.TrustTickerJSON = s.Value
+		case "scrolling_announcement_enabled":
+			res.ScrollingAnnouncementEnabled = s.Value != "false" && s.Value != "0"
+		case "scrolling_announcement_text":
 			if s.Value != "" {
-				res.CheckoutChannelTitle = s.Value
+				res.ScrollingAnnouncementText = s.Value
 			}
-		case "checkout_channel_sms_label":
+		case "scrolling_announcement_icon":
 			if s.Value != "" {
-				res.CheckoutChannelSMSLabel = s.Value
+				res.ScrollingAnnouncementIcon = s.Value
 			}
-		case "checkout_channel_email_label":
+		case "scrolling_announcement_badge":
 			if s.Value != "" {
-				res.CheckoutChannelEmailLabel = s.Value
+				res.ScrollingAnnouncementBadge = s.Value
+			}
+		case "hero_badge_text":
+			if s.Value != "" {
+				res.HeroBadgeText = s.Value
+			}
+		case "hero_title":
+			if s.Value != "" {
+				res.HeroTitle = s.Value
+			}
+		case "hero_typewriter_words":
+			if s.Value != "" {
+				res.HeroTypewriterWords = s.Value
+			}
+		case "hero_description":
+			if s.Value != "" {
+				res.HeroDescription = s.Value
+			}
+		case "hero_btn1_text":
+			if s.Value != "" {
+				res.HeroBtn1Text = s.Value
+			}
+		case "hero_btn1_link":
+			if s.Value != "" {
+				res.HeroBtn1Link = s.Value
+			}
+		case "hero_btn2_text":
+			if s.Value != "" {
+				res.HeroBtn2Text = s.Value
+			}
+		case "hero_btn2_link":
+			if s.Value != "" {
+				res.HeroBtn2Link = s.Value
 			}
 		case "offers_badge_text":
 			if s.Value != "" {
@@ -115,17 +156,11 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 				res.OffersSubtitle = s.Value
 			}
 		case "site_name_fa":
-			if s.Value != "" {
-				res.SiteNameFA = s.Value
-			}
+			res.SiteNameFA = s.Value
 		case "site_name_en":
-			if s.Value != "" {
-				res.SiteNameEN = s.Value
-			}
+			res.SiteNameEN = s.Value
 		case "site_subtitle":
-			if s.Value != "" {
-				res.SiteSubtitle = s.Value
-			}
+			res.SiteSubtitle = s.Value
 		case "site_favicon_url":
 			if s.Value != "" {
 				res.SiteFaviconURL = s.Value
@@ -166,6 +201,10 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.FooterMenuJSON = s.Value
 			}
+		case "footer_badges_json":
+			res.FooterBadgesJSON = s.Value
+		case "footer_description":
+			res.FooterDescription = s.Value
 		case "sms_api_key":
 			if s.Value != "" {
 				res.SMSApiKey = s.Value
@@ -259,70 +298,103 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 			Category: "theme", Key: "theme_event_icon", Value: req.EventIcon, Type: "string", Desc: "آیکون سه بعدی یا گرافیکی رویداد",
 		})
 	}
-	// Only update auth settings if they were actually configured/sent
-	if req.AuthPasswordEnabled || req.AuthGoogleEnabled || req.AuthGithubEnabled || req.AuthOTPRequired {
-		settingsToUpsert = append(settingsToUpsert,
-			model.SystemSetting{Category: "auth", Key: "auth_google_enabled", Value: boolToStr(req.AuthGoogleEnabled), Type: "bool", Desc: "امکان ورود با حساب گوگل"},
-			model.SystemSetting{Category: "auth", Key: "auth_github_enabled", Value: boolToStr(req.AuthGithubEnabled), Type: "bool", Desc: "امکان ورود با حساب گیت‌هاب"},
-			model.SystemSetting{Category: "auth", Key: "auth_password_enabled", Value: boolToStr(req.AuthPasswordEnabled), Type: "bool", Desc: "امکان ورود با نام کاربری و کلمه عبور"},
-			model.SystemSetting{Category: "auth", Key: "auth_otp_required", Value: boolToStr(req.AuthOTPRequired), Type: "bool", Desc: "الزام تایید دومرحله‌ای پیامکی OTP"},
-		)
+	// Individually update auth settings if provided
+	if req.AuthGoogleEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "auth", Key: "auth_google_enabled", Value: boolToStr(*req.AuthGoogleEnabled), Type: "bool", Desc: "امکان ورود با حساب گوگل",
+		})
+	}
+	if req.AuthGithubEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "auth", Key: "auth_github_enabled", Value: boolToStr(*req.AuthGithubEnabled), Type: "bool", Desc: "امکان ورود با حساب گیت‌هاب",
+		})
+	}
+	if req.AuthPasswordEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "auth", Key: "auth_password_enabled", Value: boolToStr(*req.AuthPasswordEnabled), Type: "bool", Desc: "امکان ورود با نام کاربری و کلمه عبور",
+		})
+	}
+	if req.AuthEmailEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "auth", Key: "auth_email_enabled", Value: boolToStr(*req.AuthEmailEnabled), Type: "bool", Desc: "امکان ثبت‌نام و ورود با ایمیل",
+		})
+	}
+	if req.AuthOTPRequired != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "auth", Key: "auth_otp_required", Value: boolToStr(*req.AuthOTPRequired), Type: "bool", Desc: "الزام تایید دومرحله‌ای پیامکی OTP",
+		})
+	}
+	if req.TrustTickerEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "trust_ticker_enabled", Value: boolToStr(*req.TrustTickerEnabled), Type: "bool", Desc: "نمایش نوار تضمین خدمات در صفحه اصلی",
+		})
+	}
+	if req.TrustTickerJSON != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "trust_ticker_json", Value: req.TrustTickerJSON, Type: "string", Desc: "داده‌های متنی و آیکون‌های نوار تضمین خدمات",
+		})
+	}
+	if req.ScrollingAnnouncementEnabled != nil {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "scrolling_announcement_enabled", Value: boolToStr(*req.ScrollingAnnouncementEnabled), Type: "bool", Desc: "نمایش نوار اسکرولی متحرک در صفحه اصلی",
+		})
+	}
+	if req.ScrollingAnnouncementText != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "scrolling_announcement_text", Value: req.ScrollingAnnouncementText, Type: "string", Desc: "متن نوار متحرک اسکرولی جشنواره",
+		})
+	}
+	if req.ScrollingAnnouncementIcon != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "scrolling_announcement_icon", Value: req.ScrollingAnnouncementIcon, Type: "string", Desc: "آیکون نوار متحرک اسکرولی",
+		})
+	}
+	if req.ScrollingAnnouncementBadge != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "theme", Key: "scrolling_announcement_badge", Value: req.ScrollingAnnouncementBadge, Type: "string", Desc: "متن نشان نوار متحرک اسکرولی",
+		})
+	}
+	if req.HeroBadgeText != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_badge_text", Value: req.HeroBadgeText, Type: "string", Desc: "متن نشان بالای هیرو",
+		})
+	}
+	if req.HeroTitle != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_title", Value: req.HeroTitle, Type: "string", Desc: "تیتر اصلی هیرو سکشن",
+		})
+	}
+	if req.HeroTypewriterWords != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_typewriter_words", Value: req.HeroTypewriterWords, Type: "string", Desc: "کلمات متحرک تایپ‌رایتر هیرو",
+		})
+	}
+	if req.HeroDescription != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_description", Value: req.HeroDescription, Type: "string", Desc: "متن توضیحات هیرو سکشن",
+		})
+	}
+	if req.HeroBtn1Text != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_btn1_text", Value: req.HeroBtn1Text, Type: "string", Desc: "متن دکمه اول هیرو",
+		})
+	}
+	if req.HeroBtn1Link != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_btn1_link", Value: req.HeroBtn1Link, Type: "string", Desc: "لینک دکمه اول هیرو",
+		})
+	}
+	if req.HeroBtn2Text != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_btn2_text", Value: req.HeroBtn2Text, Type: "string", Desc: "متن دکمه دوم هیرو",
+		})
+	}
+	if req.HeroBtn2Link != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "hero", Key: "hero_btn2_link", Value: req.HeroBtn2Link, Type: "string", Desc: "لینک دکمه دوم هیرو",
+		})
 	}
 
-	if req.CheckoutChannelSectionEnabled != nil {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_section_enabled",
-			Value:    boolToStr(*req.CheckoutChannelSectionEnabled),
-			Type:     "bool",
-			Desc:     "نمایش بخش انتخاب کانال دریافت فاکتور و لایسنس در تسویه‌حساب",
-		})
-	}
-	if req.CheckoutChannelSMSEnabled != nil {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_sms_enabled",
-			Value:    boolToStr(*req.CheckoutChannelSMSEnabled),
-			Type:     "bool",
-			Desc:     "فعال‌سازی کانال پیامک جهت دریافت اطلاعات سفارش",
-		})
-	}
-	if req.CheckoutChannelEmailEnabled != nil {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_email_enabled",
-			Value:    boolToStr(*req.CheckoutChannelEmailEnabled),
-			Type:     "bool",
-			Desc:     "فعال‌سازی کانال ایمیل جهت دریافت اطلاعات سفارش",
-		})
-	}
-	if req.CheckoutChannelTitle != "" {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_title",
-			Value:    req.CheckoutChannelTitle,
-			Type:     "string",
-			Desc:     "عنوان بخش کانال دریافت فاکتور و لایسنس",
-		})
-	}
-	if req.CheckoutChannelSMSLabel != "" {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_sms_label",
-			Value:    req.CheckoutChannelSMSLabel,
-			Type:     "string",
-			Desc:     "عنوان دکمه پیامک به موبایل",
-		})
-	}
-	if req.CheckoutChannelEmailLabel != "" {
-		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "checkout",
-			Key:      "checkout_channel_email_label",
-			Value:    req.CheckoutChannelEmailLabel,
-			Type:     "string",
-			Desc:     "عنوان دکمه ارسال به ایمیل",
-		})
-	}
 	if req.OffersBadgeText != "" {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
 			Category: "theme",
@@ -350,19 +422,19 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 			Desc:     "زیرعنوان توضیحات صفحه آفرها",
 		})
 	}
-	if req.SiteNameFA != "" {
+	if req.SiteNameFA != nil {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "branding", Key: "site_name_fa", Value: req.SiteNameFA, Type: "string", Desc: "نام فارسی وبسایت",
+			Category: "branding", Key: "site_name_fa", Value: *req.SiteNameFA, Type: "string", Desc: "نام فارسی وبسایت",
 		})
 	}
-	if req.SiteNameEN != "" {
+	if req.SiteNameEN != nil {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "branding", Key: "site_name_en", Value: req.SiteNameEN, Type: "string", Desc: "نام انگلیسی وبسایت",
+			Category: "branding", Key: "site_name_en", Value: *req.SiteNameEN, Type: "string", Desc: "نام انگلیسی وبسایت",
 		})
 	}
-	if req.SiteSubtitle != "" {
+	if req.SiteSubtitle != nil {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
-			Category: "branding", Key: "site_subtitle", Value: req.SiteSubtitle, Type: "string", Desc: "زیرعنوان یا شعار برند",
+			Category: "branding", Key: "site_subtitle", Value: *req.SiteSubtitle, Type: "string", Desc: "زیرعنوان یا شعار برند",
 		})
 	}
 	if req.SiteFaviconURL != "" {
@@ -413,6 +485,16 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 	if req.FooterMenuJSON != "" {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
 			Category: "menus", Key: "footer_menu_json", Value: req.FooterMenuJSON, Type: "string", Desc: "پیکربندی منوی فوتر سایت",
+		})
+	}
+	if req.FooterBadgesJSON != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "menus", Key: "footer_badges_json", Value: req.FooterBadgesJSON, Type: "json", Desc: "نمادهای اعتماد و مجوزهای فوتر",
+		})
+	}
+	if req.FooterDescription != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "branding", Key: "footer_description", Value: req.FooterDescription, Type: "string", Desc: "متن توضیحات و معرفی فوتر",
 		})
 	}
 	if req.SMSApiKey != "" {

@@ -12,14 +12,9 @@ type ThemeSettingsResponse struct {
 	AuthGoogleEnabled   bool   `json:"auth_google_enabled"`   // toggle google oauth
 	AuthGithubEnabled   bool   `json:"auth_github_enabled"`   // toggle github oauth
 	AuthPasswordEnabled bool   `json:"auth_password_enabled"` // toggle password login
+	AuthEmailEnabled    bool   `json:"auth_email_enabled"`    // toggle email registration & login
 	AuthOTPRequired     bool   `json:"auth_otp_required"`     // require mobile otp
-	CheckoutChannelSectionEnabled bool   `json:"checkout_channel_section_enabled"` // show invoice/tracking channel section
-	CheckoutChannelSMSEnabled     bool   `json:"checkout_channel_sms_enabled"`     // enable sms destination channel
-	CheckoutChannelEmailEnabled   bool   `json:"checkout_channel_email_enabled"`   // enable email destination channel
-	CheckoutChannelTitle          string `json:"checkout_channel_title"`           // custom section title
-	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label"`       // custom sms button label
-	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label"`     // custom email button label
-	OffersBadgeText               string `json:"offers_badge_text,omitempty"`      // custom badge for /offers header
+	OffersBadgeText     string `json:"offers_badge_text,omitempty"`      // custom badge for /offers header
 	OffersTitle                   string `json:"offers_title,omitempty"`           // custom title for /offers header
 	OffersSubtitle                string `json:"offers_subtitle,omitempty"`        // custom subtitle for /offers header
 	SiteNameFA                    string `json:"site_name_fa,omitempty"`
@@ -35,6 +30,8 @@ type ThemeSettingsResponse struct {
 	SupportTelegram               string `json:"support_telegram,omitempty"`
 	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
 	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	FooterBadgesJSON              string `json:"footer_badges_json,omitempty"`
+	FooterDescription             string `json:"footer_description,omitempty"`
 	SMSApiKey                     string `json:"sms_api_key,omitempty"`
 	SMSLineNumber                 string `json:"sms_line_number,omitempty"`
 	ZarinpalMerchantID            string `json:"zarinpal_merchant_id,omitempty"`
@@ -43,6 +40,20 @@ type ThemeSettingsResponse struct {
 	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
 	TicketSMSMode                 string `json:"ticket_sms_mode,omitempty"`
 	TicketEmailMode               string `json:"ticket_email_mode,omitempty"`
+	TrustTickerEnabled            bool   `json:"trust_ticker_enabled"`
+	TrustTickerJSON               string `json:"trust_ticker_json,omitempty"`
+	ScrollingAnnouncementEnabled  bool   `json:"scrolling_announcement_enabled"`
+	ScrollingAnnouncementText     string `json:"scrolling_announcement_text,omitempty"`
+	ScrollingAnnouncementIcon     string `json:"scrolling_announcement_icon,omitempty"`
+	ScrollingAnnouncementBadge    string `json:"scrolling_announcement_badge,omitempty"`
+	HeroBadgeText                 string `json:"hero_badge_text,omitempty"`
+	HeroTitle                     string `json:"hero_title,omitempty"`
+	HeroTypewriterWords           string `json:"hero_typewriter_words,omitempty"`
+	HeroDescription               string `json:"hero_description,omitempty"`
+	HeroBtn1Text                  string `json:"hero_btn1_text,omitempty"`
+	HeroBtn1Link                  string `json:"hero_btn1_link,omitempty"`
+	HeroBtn2Text                  string `json:"hero_btn2_text,omitempty"`
+	HeroBtn2Link                  string `json:"hero_btn2_link,omitempty"`
 }
 
 type UpdateThemeSettingsRequest struct {
@@ -54,22 +65,17 @@ type UpdateThemeSettingsRequest struct {
 	HeaderAnnouncement  string `json:"header_announcement"`
 	EventEffect         string `json:"event_effect"`
 	EventIcon           string `json:"event_icon"`
-	AuthGoogleEnabled   bool   `json:"auth_google_enabled"`
-	AuthGithubEnabled   bool   `json:"auth_github_enabled"`
-	AuthPasswordEnabled bool   `json:"auth_password_enabled"`
-	AuthOTPRequired     bool   `json:"auth_otp_required"`
-	CheckoutChannelSectionEnabled *bool  `json:"checkout_channel_section_enabled,omitempty"`
-	CheckoutChannelSMSEnabled     *bool  `json:"checkout_channel_sms_enabled,omitempty"`
-	CheckoutChannelEmailEnabled   *bool  `json:"checkout_channel_email_enabled,omitempty"`
-	CheckoutChannelTitle          string `json:"checkout_channel_title,omitempty"`
-	CheckoutChannelSMSLabel       string `json:"checkout_channel_sms_label,omitempty"`
-	CheckoutChannelEmailLabel     string `json:"checkout_channel_email_label,omitempty"`
-	OffersBadgeText               string `json:"offers_badge_text,omitempty"`
+	AuthGoogleEnabled   *bool  `json:"auth_google_enabled,omitempty"`
+	AuthGithubEnabled   *bool  `json:"auth_github_enabled,omitempty"`
+	AuthPasswordEnabled *bool  `json:"auth_password_enabled,omitempty"`
+	AuthEmailEnabled    *bool  `json:"auth_email_enabled,omitempty"`
+	AuthOTPRequired     *bool  `json:"auth_otp_required,omitempty"`
+	OffersBadgeText     string `json:"offers_badge_text,omitempty"`
 	OffersTitle                   string `json:"offers_title,omitempty"`
 	OffersSubtitle                string `json:"offers_subtitle,omitempty"`
-	SiteNameFA                    string `json:"site_name_fa,omitempty"`
-	SiteNameEN                    string `json:"site_name_en,omitempty"`
-	SiteSubtitle                  string `json:"site_subtitle,omitempty"`
+	SiteNameFA                    *string `json:"site_name_fa"`
+	SiteNameEN                    *string `json:"site_name_en"`
+	SiteSubtitle                  *string `json:"site_subtitle"`
 	SiteFaviconURL                string `json:"site_favicon_url,omitempty"`
 	SiteLogoURL                   string `json:"site_logo_url,omitempty"`
 	MetaTitle                     string `json:"meta_title,omitempty"`
@@ -80,6 +86,8 @@ type UpdateThemeSettingsRequest struct {
 	SupportTelegram               string `json:"support_telegram,omitempty"`
 	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
 	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	FooterBadgesJSON              string `json:"footer_badges_json,omitempty"`
+	FooterDescription             string `json:"footer_description,omitempty"`
 	SMSApiKey                     string `json:"sms_api_key,omitempty"`
 	SMSLineNumber                 string `json:"sms_line_number,omitempty"`
 	ZarinpalMerchantID            string `json:"zarinpal_merchant_id,omitempty"`
@@ -88,6 +96,20 @@ type UpdateThemeSettingsRequest struct {
 	FivesimApiKey                 string `json:"fivesim_api_key,omitempty"`
 	TicketSMSMode                 string `json:"ticket_sms_mode,omitempty"`
 	TicketEmailMode               string `json:"ticket_email_mode,omitempty"`
+	TrustTickerEnabled            *bool  `json:"trust_ticker_enabled,omitempty"`
+	TrustTickerJSON               string `json:"trust_ticker_json,omitempty"`
+	ScrollingAnnouncementEnabled  *bool  `json:"scrolling_announcement_enabled,omitempty"`
+	ScrollingAnnouncementText     string `json:"scrolling_announcement_text,omitempty"`
+	ScrollingAnnouncementIcon     string `json:"scrolling_announcement_icon,omitempty"`
+	ScrollingAnnouncementBadge    string `json:"scrolling_announcement_badge,omitempty"`
+	HeroBadgeText                 string `json:"hero_badge_text,omitempty"`
+	HeroTitle                     string `json:"hero_title,omitempty"`
+	HeroTypewriterWords           string `json:"hero_typewriter_words,omitempty"`
+	HeroDescription               string `json:"hero_description,omitempty"`
+	HeroBtn1Text                  string `json:"hero_btn1_text,omitempty"`
+	HeroBtn1Link                  string `json:"hero_btn1_link,omitempty"`
+	HeroBtn2Text                  string `json:"hero_btn2_text,omitempty"`
+	HeroBtn2Link                  string `json:"hero_btn2_link,omitempty"`
 }
 
 type PasswordLoginRequest struct {

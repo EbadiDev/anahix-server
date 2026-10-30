@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
@@ -1087,6 +1088,7 @@ func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
 		Icon        *string `json:"icon"`
 		Description *string `json:"description"`
 		Enable      *bool   `json:"enable"`
+		DisplayMode *string `json:"display_mode"`
 		Sort        *int    `json:"sort"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1103,8 +1105,20 @@ func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
 	if req.Description != nil {
 		p.Description = *req.Description
 	}
-	if req.Enable != nil {
+	if req.DisplayMode != nil {
+		p.DisplayMode = *req.DisplayMode
+		if *req.DisplayMode == "active" {
+			p.Enable = true
+		} else {
+			p.Enable = false
+		}
+	} else if req.Enable != nil {
 		p.Enable = *req.Enable
+		if *req.Enable {
+			p.DisplayMode = "active"
+		} else {
+			p.DisplayMode = "hidden"
+		}
 	}
 	if req.Sort != nil {
 		p.Sort = *req.Sort
@@ -1155,6 +1169,102 @@ func (h *AdminHandler) UpdateAnnouncement(c *gin.Context) {
 func (h *AdminHandler) DeleteAnnouncement(c *gin.Context) {
 	idStr := c.Param("id")
 	err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&model.SystemAnnouncement{}, "id = ?", idStr).Error
+	result.HttpResult(c, gin.H{"deleted": true}, err)
+}
+
+func (h *AdminHandler) ListCustomerNotifications(c *gin.Context) {
+	type NotifItem struct {
+		model.CustomerNotification
+		CustomerPhone string `json:"customer_phone"`
+		CustomerName  string `json:"customer_name"`
+	}
+	var notifs []model.CustomerNotification
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Order("created_at desc").
+		Limit(100).
+		Find(&notifs).Error
+	if err != nil {
+		result.HttpResult(c, nil, err)
+		return
+	}
+
+	res := make([]NotifItem, len(notifs))
+	for i, n := range notifs {
+		var cust model.Customer
+		h.svcCtx.DB.WithContext(c.Request.Context()).Select("phone, full_name").First(&cust, "id = ?", n.CustomerID)
+		res[i] = NotifItem{
+			CustomerNotification: n,
+			CustomerPhone:        cust.Phone,
+			CustomerName:         cust.FullName,
+		}
+	}
+	result.HttpResult(c, res, nil)
+}
+
+func (h *AdminHandler) SendCustomerNotification(c *gin.Context) {
+	var req struct {
+		Target     string `json:"target"` // "all" or specific customer_id
+		CustomerID string `json:"customer_id"`
+		Title      string `json:"title" binding:"required"`
+		Message    string `json:"message" binding:"required"`
+		Type       string `json:"type"` // "system", "security", "loyalty", "order"
+		Link       string `json:"link"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	notifType := req.Type
+	if notifType == "" {
+		notifType = "system"
+	}
+
+	db := h.svcCtx.DB.WithContext(c.Request.Context())
+
+	if req.Target == "all" || req.CustomerID == "" {
+		var customers []model.Customer
+		db.Find(&customers)
+		for _, cust := range customers {
+			n := model.CustomerNotification{
+				ID:         uuid.New(),
+				CustomerID: cust.ID,
+				Title:      req.Title,
+				Message:    req.Message,
+				Type:       notifType,
+				Link:       req.Link,
+				IsRead:     false,
+				CreatedAt:  time.Now(),
+			}
+			db.Create(&n)
+		}
+		result.HttpResult(c, gin.H{"sent_count": len(customers), "message": "پیام به کلیه کاربران با موفقیت ارسال شد"}, nil)
+		return
+	}
+
+	custUUID, err := uuid.Parse(req.CustomerID)
+	if err != nil {
+		result.ParamErrorResult(c, fmt.Errorf("شناسه کاربر نامعتبر است"))
+		return
+	}
+
+	n := model.CustomerNotification{
+		ID:         uuid.New(),
+		CustomerID: custUUID,
+		Title:      req.Title,
+		Message:    req.Message,
+		Type:       notifType,
+		Link:       req.Link,
+		IsRead:     false,
+		CreatedAt:  time.Now(),
+	}
+	err = db.Create(&n).Error
+	result.HttpResult(c, n, err)
+}
+
+func (h *AdminHandler) DeleteCustomerNotification(c *gin.Context) {
+	idStr := c.Param("id")
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&model.CustomerNotification{}, "id = ?", idStr).Error
 	result.HttpResult(c, gin.H{"deleted": true}, err)
 }
 

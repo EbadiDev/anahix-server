@@ -263,6 +263,11 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.PUT("/announcements/:id", admHandler.UpdateAnnouncement)
 				protected.DELETE("/announcements/:id", admHandler.DeleteAnnouncement)
 
+				// Customer In-App Account Notifications Management
+				protected.GET("/customer-notifications", admHandler.ListCustomerNotifications)
+				protected.POST("/customer-notifications", admHandler.SendCustomerNotification)
+				protected.DELETE("/customer-notifications/:id", admHandler.DeleteCustomerNotification)
+
 				// Notification Metrics & BI
 				protected.GET("/notifications/stats", pubNotifHandler.GetAdminNotificationStats)
 

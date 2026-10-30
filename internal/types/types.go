@@ -133,6 +133,8 @@ type PaymentMethodItem struct {
 	Platform    string `json:"platform"`
 	Icon        string `json:"icon"`
 	Description string `json:"description"`
+	Enable      bool   `json:"enable"`
+	DisplayMode string `json:"display_mode"`
 }
 
 type CartItemInput struct {
