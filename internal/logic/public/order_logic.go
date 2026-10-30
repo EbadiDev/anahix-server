@@ -80,6 +80,47 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		return prod.PriceToman, nil
 	}
 
+	validateStock := func(prod *model.Product, qty int) error {
+		if prod.StockMode == "out_of_stock" {
+			return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است و امکان خرید وجود ندارد", prod.TitleFA))
+		}
+		if prod.StockMode == "always_in_stock" {
+			return nil
+		}
+		if prod.StockMode == "manual" {
+			if prod.ManualStock <= 0 {
+				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+			}
+			if prod.ManualStock < qty {
+				return xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+			}
+			return nil
+		}
+		// Automatic / Instant stock verification
+		if prod.DeliveryStrategy == "third_party_instant" || prod.ExternalProvider != "" {
+			if prod.ManualStock <= 0 {
+				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+			}
+			if prod.ManualStock < qty {
+				return xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+			}
+			return nil
+		}
+		if prod.DeliveryType == model.DeliveryInstant {
+			var count int64
+			l.svcCtx.DB.WithContext(l.ctx).Model(&model.InventoryItem{}).
+				Where("product_id = ? AND status = ?", prod.ID, model.InventoryAvailable).
+				Count(&count)
+			if count <= 0 {
+				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+			}
+			if count < int64(qty) {
+				return xerr.NewErrMsg(fmt.Sprintf("موجودی کلیدهای محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, count))
+			}
+		}
+		return nil
+	}
+
 	if len(req.Items) > 0 {
 		for _, it := range req.Items {
 			pID, err := uuid.Parse(it.ProductID)
@@ -92,11 +133,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 			}
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				if prod.StockMode == "out_of_stock" {
-					return nil, xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است", prod.TitleFA))
-				}
-				if prod.StockMode == "manual" && prod.ManualStock < qty {
-					return nil, xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+				if err := validateStock(&prod, qty); err != nil {
+					return nil, err
 				}
 				planPrice, planObj := resolvePlan(&prod, it.PlanID)
 				entries = append(entries, itemEntry{
@@ -113,11 +151,8 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		if err == nil {
 			var prod model.Product
 			if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ? AND is_active = ?", pID, true).First(&prod).Error; err == nil {
-				if prod.StockMode == "out_of_stock" {
-					return nil, xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است", prod.TitleFA))
-				}
-				if prod.StockMode == "manual" && prod.ManualStock < 1 {
-					return nil, xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد", prod.TitleFA))
+				if err := validateStock(&prod, 1); err != nil {
+					return nil, err
 				}
 				planPrice, planObj := resolvePlan(&prod, req.PlanID)
 				entries = append(entries, itemEntry{

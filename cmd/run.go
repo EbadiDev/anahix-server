@@ -188,6 +188,10 @@ func seedInitialData(db *gorm.DB) {
 		"auth_password_enabled",
 	}).Update("value", "true")
 
+	// Normalize legacy out_of_stock_text from "در حال تهیه و تامین مجدد" to "ناموجود"
+	db.Model(&model.Product{}).Where("out_of_stock_text = ? OR out_of_stock_text IS NULL OR out_of_stock_text = ''", "در حال تهیه و تامین مجدد").
+		Update("out_of_stock_text", "ناموجود")
+
 	// Delete obsolete checkout channel settings from system settings table
 	db.Where("category = ? OR key LIKE ?", "checkout", "checkout_channel_%").Delete(&model.SystemSetting{})
 

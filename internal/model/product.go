@@ -85,7 +85,7 @@ type Product struct {
 	// Merchandising & Stock Display Control
 	StockMode             string `gorm:"size:50;default:'auto'" json:"stock_mode"`
 	ManualStock           int    `gorm:"default:0" json:"manual_stock"`
-	OutOfStockText        string `gorm:"size:255;default:'در حال تهیه و تامین مجدد'" json:"out_of_stock_text"`
+	OutOfStockText        string `gorm:"size:255;default:'ناموجود'" json:"out_of_stock_text"`
 	StockDisplayMode      string `gorm:"size:30;default:'show_exact'" json:"stock_display_mode"`
 	ParentCategorySlug    string `gorm:"size:100;index" json:"parent_category_slug"`
 	CategorySlug          string `gorm:"size:100;index" json:"category_slug"`

@@ -74,9 +74,18 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 		} else if p.StockMode == "out_of_stock" {
 			availableStock = 0
 		} else if p.DeliveryType == model.DeliveryInstant {
-			availableStock = stockMap[p.ID]
+			if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+				availableStock = int64(p.ManualStock)
+			} else {
+				availableStock = stockMap[p.ID]
+			}
 		} else {
 			availableStock = 99
+		}
+
+		outOfStockText := p.OutOfStockText
+		if outOfStockText == "" || outOfStockText == "در حال تهیه و تامین مجدد" {
+			outOfStockText = "ناموجود"
 		}
 
 		var features []string
@@ -130,7 +139,7 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 			GroupTitleFA:        p.GroupTitleFA,
 			StockDisplayMode:    p.StockDisplayMode,
 			StockMode:           p.StockMode,
-			OutOfStockText:      p.OutOfStockText,
+			OutOfStockText:      outOfStockText,
 			Features:            features,
 		}
 	}
@@ -155,12 +164,21 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	} else if p.StockMode == "out_of_stock" {
 		availableStock = 0
 	} else if p.DeliveryType == model.DeliveryInstant {
-		l.svcCtx.DB.WithContext(l.ctx).
-			Model(&model.InventoryItem{}).
-			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
-			Count(&availableStock)
+		if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+			availableStock = int64(p.ManualStock)
+		} else {
+			l.svcCtx.DB.WithContext(l.ctx).
+				Model(&model.InventoryItem{}).
+				Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
+				Count(&availableStock)
+		}
 	} else {
 		availableStock = 99
+	}
+
+	outOfStockText := p.OutOfStockText
+	if outOfStockText == "" || outOfStockText == "در حال تهیه و تامین مجدد" {
+		outOfStockText = "ناموجود"
 	}
 
 	// 1. Features
@@ -281,6 +299,9 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 			IsActive:            p.IsActive,
 			GroupTag:            p.GroupTag,
 			GroupTitleFA:        p.GroupTitleFA,
+			StockDisplayMode:    p.StockDisplayMode,
+			StockMode:           p.StockMode,
+			OutOfStockText:      outOfStockText,
 			Features:            features,
 		},
 		Description:      p.Description,

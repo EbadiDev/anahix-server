@@ -683,9 +683,34 @@ func (l *DeliveryEngineLogic) ImportBotProduct(req *types.ImportBotProductReques
 		strategy = "third_party_instant"
 	}
 
-	stockMode := req.StockDisplayMode
+	stockDisplayMode := req.StockDisplayMode
+	if stockDisplayMode == "" {
+		stockDisplayMode = "show_exact"
+	}
+
+	// Calculate initial stock mode and count from supplier data
+	stockMode := req.StockMode
+	manualStock := req.ManualStock
 	if stockMode == "" {
-		stockMode = "show_exact"
+		if req.Unlimited {
+			stockMode = "always_in_stock"
+			manualStock = 999
+		} else if req.InStock != nil && !*req.InStock {
+			stockMode = "out_of_stock"
+			manualStock = 0
+		} else if req.Stock > 0 {
+			stockMode = "manual"
+			manualStock = int(req.Stock)
+		} else if req.Stock == 0 && (req.InStock == nil || !*req.InStock) {
+			stockMode = "out_of_stock"
+			manualStock = 0
+		} else {
+			stockMode = "auto"
+		}
+	}
+	outOfStockText := req.OutOfStockText
+	if outOfStockText == "" || outOfStockText == "در حال تهیه و تامین مجدد" {
+		outOfStockText = "ناموجود"
 	}
 
 	reqInput := req.RequiredCustomerInput
@@ -727,7 +752,10 @@ func (l *DeliveryEngineLogic) ImportBotProduct(req *types.ImportBotProductReques
 		PrePurchaseNotice:     req.PrePurchaseNotice,
 		PrePurchaseNoticeMode: req.PrePurchaseNoticeMode,
 		PrePurchaseSnoozeDays: snoozeDays,
-		StockDisplayMode:      stockMode,
+		StockDisplayMode:      stockDisplayMode,
+		StockMode:             stockMode,
+		ManualStock:           manualStock,
+		OutOfStockText:        outOfStockText,
 	}
 
 	if err == nil {

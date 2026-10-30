@@ -43,12 +43,19 @@ func (l *ProductAdminLogic) ListProducts() ([]model.Product, error) {
 		} else if products[i].StockMode == "out_of_stock" {
 			stock = 0
 		} else if products[i].DeliveryType == model.DeliveryInstant {
-			l.svcCtx.DB.WithContext(l.ctx).
-				Model(&model.InventoryItem{}).
-				Where("product_id = ? AND status = ?", products[i].ID, model.InventoryAvailable).
-				Count(&stock)
+			if products[i].ExternalProvider != "" || products[i].DeliveryStrategy == "third_party_instant" {
+				stock = int64(products[i].ManualStock)
+			} else {
+				l.svcCtx.DB.WithContext(l.ctx).
+					Model(&model.InventoryItem{}).
+					Where("product_id = ? AND status = ?", products[i].ID, model.InventoryAvailable).
+					Count(&stock)
+			}
 		} else {
 			stock = 99
+		}
+		if products[i].OutOfStockText == "" || products[i].OutOfStockText == "در حال تهیه و تامین مجدد" {
+			products[i].OutOfStockText = "ناموجود"
 		}
 		products[i].AvailableStock = stock
 	}
@@ -86,12 +93,19 @@ func (l *ProductAdminLogic) GetProduct(prodID uuid.UUID) (*model.Product, error)
 	} else if p.StockMode == "out_of_stock" {
 		stock = 0
 	} else if p.DeliveryType == model.DeliveryInstant {
-		l.svcCtx.DB.WithContext(l.ctx).
-			Model(&model.InventoryItem{}).
-			Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
-			Count(&stock)
+		if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+			stock = int64(p.ManualStock)
+		} else {
+			l.svcCtx.DB.WithContext(l.ctx).
+				Model(&model.InventoryItem{}).
+				Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
+				Count(&stock)
+		}
 	} else {
 		stock = 99
+	}
+	if p.OutOfStockText == "" || p.OutOfStockText == "در حال تهیه و تامین مجدد" {
+		p.OutOfStockText = "ناموجود"
 	}
 	p.AvailableStock = stock
 

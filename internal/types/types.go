@@ -514,6 +514,12 @@ type ImportBotProductRequest struct {
 	ImageURL              string  `json:"image_url"`
 	IconURL               string  `json:"icon_url"`
 	Description           string  `json:"description"`
+	Stock                 int64   `json:"stock"`
+	InStock               *bool   `json:"in_stock"`
+	Unlimited             bool    `json:"unlimited"`
+	StockMode             string  `json:"stock_mode"`
+	ManualStock           int     `json:"manual_stock"`
+	OutOfStockText        string  `json:"out_of_stock_text"`
 }
 
 type CreateStoreCategoryRequest struct {
