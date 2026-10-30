@@ -17,6 +17,8 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/exchangerate"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type VirtualNumberLogic struct {
@@ -534,6 +536,25 @@ func (l *VirtualNumberLogic) CreateOrder(req *types.BuyVirtualNumberRequest) (*t
 		return nil, errors.New("فروش شماره مجازی موقتاً توسط مدیریت غیرفعال شده است")
 	}
 
+	// 1. Resolve and verify customer wallet identity
+	var customer model.Customer
+	foundCust := false
+	if req.AuthCustomerID != nil {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND is_active = ?", *req.AuthCustomerID, true).First(&customer).Error; err == nil {
+			foundCust = true
+		}
+	} else if req.CustomerPhone != "" {
+		if err := l.svcCtx.DB.WithContext(l.ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("phone = ? AND is_active = ?", req.CustomerPhone, true).First(&customer).Error; err == nil {
+			foundCust = true
+		}
+	}
+
+	if !foundCust {
+		return nil, errors.New("حساب کاربری یافت نشد. لطفاً ابتدا وارد حساب کاربری خود شوید")
+	}
+
 	country := strings.ToLower(strings.TrimSpace(req.Country))
 	service := strings.ToLower(strings.TrimSpace(req.Service))
 	operator := strings.ToLower(strings.TrimSpace(req.Operator))
@@ -557,6 +578,12 @@ func (l *VirtualNumberLogic) CreateOrder(req *types.BuyVirtualNumberRequest) (*t
 	priceToman = ((priceToman + 499) / 500) * 500
 	if priceToman < 5000 {
 		priceToman = 5000
+	}
+
+	// 2. Check and deduct customer wallet balance atomically
+	if customer.BalanceToman < priceToman {
+		_ = l.client.CancelOrder(apiKey, ord5Sim.ID)
+		return nil, fmt.Errorf("موجودی کیف پول شما (%d تومان) برای خرید این شماره مجازی (%d تومان) کافی نیست", customer.BalanceToman, priceToman)
 	}
 
 	orderID := uuid.New()
@@ -586,36 +613,46 @@ func (l *VirtualNumberLogic) CreateOrder(req *types.BuyVirtualNumberRequest) (*t
 		ProviderOrderID: ord5Sim.ID,
 		FiveSimOrderID:  ord5Sim.ID,
 		Phone:           ord5Sim.Phone,
-		Country:        country,
-		CountryNameFA:  cMeta.NameFA,
-		CountryFlag:    cMeta.Flag,
-		Service:        service,
-		ServiceNameFA:  sNameFA,
-		Operator:       ord5Sim.Operator,
-		BaseCost:       baseUSD,
-		PriceToman:     priceToman,
-		Status:         model.VNumStatusPending,
-		CustomerPhone:  req.CustomerPhone,
-		ExpiresAt:      expiresAt,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		Country:         country,
+		CountryNameFA:   cMeta.NameFA,
+		CountryFlag:     cMeta.Flag,
+		Service:         service,
+		ServiceNameFA:   sNameFA,
+		Operator:        ord5Sim.Operator,
+		BaseCost:        baseUSD,
+		PriceToman:      priceToman,
+		Status:          model.VNumStatusPending,
+		CustomerPhone:   customer.Phone,
+		ExpiresAt:       expiresAt,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 
-	if err := l.svcCtx.DB.WithContext(l.ctx).Create(&order).Error; err != nil {
-		return nil, fmt.Errorf("خطا در ثبت سفارش: %w", err)
-	}
-
-	// Record transaction log
-	_ = audit.RecordTransaction(l.ctx, l.svcCtx.DB, &model.Transaction{
-		OrderID:         &order.ID,
-		OrderType:       model.TxTypeVirtualNumber,
-		CustomerPhone:   order.CustomerPhone,
-		AmountToman:     order.PriceToman,
-		AmountUSD:       order.BaseCost,
-		PaymentPlatform: model.PlatformBalance,
-		Status:          model.TxStatusSuccess,
-		Description:     fmt.Sprintf("خرید شماره مجازی %s (%s) برای %s", order.CountryNameFA, order.Phone, order.ServiceNameFA),
+	txErr := l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
+		customer.BalanceToman -= priceToman
+		if err := tx.Save(&customer).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&order).Error; err != nil {
+			return err
+		}
+		// Record transaction log
+		return audit.RecordTransaction(l.ctx, tx, &model.Transaction{
+			OrderID:         &order.ID,
+			CustomerID:      &customer.ID,
+			OrderType:       model.TxTypeVirtualNumber,
+			CustomerPhone:   customer.Phone,
+			AmountToman:     order.PriceToman,
+			AmountUSD:       order.BaseCost,
+			PaymentPlatform: model.PlatformBalance,
+			Status:          model.TxStatusSuccess,
+			Description:     fmt.Sprintf("خرید شماره مجازی %s (%s) برای %s", order.CountryNameFA, order.Phone, order.ServiceNameFA),
+		})
 	})
+	if txErr != nil {
+		_ = l.client.CancelOrder(apiKey, ord5Sim.ID)
+		return nil, fmt.Errorf("خطا در ثبت سفارش و کسر موجودی: %w", txErr)
+	}
 
 	remSeconds := int(time.Until(order.ExpiresAt).Seconds())
 	if remSeconds < 0 {
@@ -731,10 +768,26 @@ func (l *VirtualNumberLogic) CancelOrder(orderIDStr string) error {
 		pID = order.FiveSimOrderID
 	}
 	_ = l.client.CancelOrder(apiKey, pID)
-	order.Status = model.VNumStatusCanceled
-	err = l.svcCtx.DB.WithContext(l.ctx).Model(&order).Update("status", model.VNumStatusCanceled).Error
-	if err == nil {
-		_ = audit.RecordTransaction(l.ctx, l.svcCtx.DB, &model.Transaction{
+
+	return l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
+		order.Status = model.VNumStatusCanceled
+		if err := tx.Model(&order).Update("status", model.VNumStatusCanceled).Error; err != nil {
+			return err
+		}
+
+		// Refund wallet balance to customer
+		if order.PriceToman > 0 && order.CustomerPhone != "" {
+			var cust model.Customer
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("phone = ?", order.CustomerPhone).First(&cust).Error; err == nil {
+				cust.BalanceToman += order.PriceToman
+				if err := tx.Save(&cust).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		_ = audit.RecordTransaction(l.ctx, tx, &model.Transaction{
 			OrderID:         &order.ID,
 			OrderType:       model.TxTypeRefund,
 			CustomerPhone:   order.CustomerPhone,
@@ -744,8 +797,8 @@ func (l *VirtualNumberLogic) CancelOrder(orderIDStr string) error {
 			Status:          model.TxStatusRefunded,
 			Description:     fmt.Sprintf("استرداد وجه سفارش شماره مجازی #%s (%s)", order.OrderNo, order.ServiceNameFA),
 		})
-	}
-	return err
+		return nil
+	})
 }
 
 func (l *VirtualNumberLogic) FinishOrder(orderIDStr string) error {

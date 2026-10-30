@@ -6,6 +6,7 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/result"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type VirtualNumberHandler struct {
@@ -40,6 +41,13 @@ func (h *VirtualNumberHandler) CreateOrder(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		result.ParamErrorResult(c, err)
 		return
+	}
+
+	custIDVal, hasAuth := c.Get("customer_id")
+	if hasAuth {
+		if uid, err := uuid.Parse(custIDVal.(string)); err == nil {
+			req.AuthCustomerID = &uid
+		}
 	}
 
 	l := public.NewVirtualNumberLogic(c.Request.Context(), h.svcCtx)

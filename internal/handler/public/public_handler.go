@@ -49,6 +49,21 @@ func (h *PublicHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	custIDVal, hasAuth := c.Get("customer_id")
+	if req.PaymentMethod == "balance" {
+		if !hasAuth {
+			result.HttpResult(c, nil, xerr.NewErrMsg("جهت پرداخت از موجودی کیف پول، ورود به حساب کاربری الزامی است"))
+			return
+		}
+		if uid, err := uuid.Parse(custIDVal.(string)); err == nil {
+			req.AuthCustomerID = &uid
+		}
+	} else if hasAuth {
+		if uid, err := uuid.Parse(custIDVal.(string)); err == nil {
+			req.AuthCustomerID = &uid
+		}
+	}
+
 	l := public.NewOrderLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.CreateOrder(&req)
 	result.HttpResult(c, resp, err)

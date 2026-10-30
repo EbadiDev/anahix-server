@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
+	"github.com/google/uuid"
 )
 
 // Public Storefront DTOs
@@ -157,6 +158,9 @@ type CreateOrderRequest struct {
 	CustomerAccountEmail    string `json:"customer_account_email"`
 	CustomerAccountPassword string `json:"customer_account_password"`
 	CustomerNotes           string `json:"customer_notes"`
+
+	// Authenticated customer context (injected securely by handler middleware)
+	AuthCustomerID *uuid.UUID `json:"-"`
 
 	// Corporate / Legal entity invoice request
 	IsCorporate    *bool  `json:"is_corporate,omitempty"`
@@ -341,11 +345,12 @@ type VirtualNumberCatalogItem struct {
 }
 
 type BuyVirtualNumberRequest struct {
-	Country       string `json:"country" binding:"required"`
-	Service       string `json:"service" binding:"required"`
-	Operator      string `json:"operator"`
-	CustomerPhone string `json:"customer_phone" binding:"required"`
-	PaymentMethod string `json:"payment_method"`
+	Country        string     `json:"country" binding:"required"`
+	Service        string     `json:"service" binding:"required"`
+	Operator       string     `json:"operator"`
+	CustomerPhone  string     `json:"customer_phone" binding:"required"`
+	PaymentMethod  string     `json:"payment_method"`
+	AuthCustomerID *uuid.UUID `json:"-"`
 }
 
 type VirtualNumberOrderResponse struct {

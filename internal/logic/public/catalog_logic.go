@@ -11,6 +11,7 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
 	"github.com/EbadiDev/anahix-server/pkg/xerr"
+	"github.com/google/uuid"
 )
 
 type CatalogLogic struct {
@@ -37,6 +38,32 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 		return nil, xerr.NewErrCode(xerr.DatabaseError)
 	}
 
+	// Batch load available inventory stock counts to eliminate N+1 database queries
+	type stockGroup struct {
+		ProductID uuid.UUID `gorm:"column:product_id"`
+		Stock     int64     `gorm:"column:stock"`
+	}
+	var stockGroups []stockGroup
+	stockMap := make(map[uuid.UUID]int64)
+
+	var instantProdIDs []uuid.UUID
+	for _, p := range products {
+		if p.DeliveryType == model.DeliveryInstant && p.StockMode != "always_in_stock" && p.StockMode != "manual" && p.StockMode != "out_of_stock" {
+			instantProdIDs = append(instantProdIDs, p.ID)
+		}
+	}
+	if len(instantProdIDs) > 0 {
+		_ = l.svcCtx.DB.WithContext(l.ctx).
+			Model(&model.InventoryItem{}).
+			Select("product_id, count(*) as stock").
+			Where("product_id IN ? AND status = ?", instantProdIDs, model.InventoryAvailable).
+			Group("product_id").
+			Scan(&stockGroups).Error
+		for _, sg := range stockGroups {
+			stockMap[sg.ProductID] = sg.Stock
+		}
+	}
+
 	result := make([]types.ProductListItem, len(products))
 	for i, p := range products {
 		var availableStock int64 = 0
@@ -47,10 +74,7 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 		} else if p.StockMode == "out_of_stock" {
 			availableStock = 0
 		} else if p.DeliveryType == model.DeliveryInstant {
-			l.svcCtx.DB.WithContext(l.ctx).
-				Model(&model.InventoryItem{}).
-				Where("product_id = ? AND status = ?", p.ID, model.InventoryAvailable).
-				Count(&availableStock)
+			availableStock = stockMap[p.ID]
 		} else {
 			availableStock = 99
 		}

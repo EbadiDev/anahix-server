@@ -82,7 +82,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 
 		orders := api.Group("/orders")
 		{
-			orders.POST("", pubHandler.CreateOrder)
+			orders.POST("", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.CreateOrder)
 			orders.GET("/:order_id", pubHandler.GetOrderDetail)
 			orders.POST("/:order_id/2fa", pubHandler.SubmitTwoFactor)
 			orders.GET("/:order_id/invoice", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.GetOrderInvoice)
@@ -188,10 +188,10 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 			vnums.GET("/services", vnumHandler.ListServices)
 			vnums.GET("/countries", vnumHandler.ListCountriesForService)
 			vnums.GET("/catalog", vnumHandler.ListCatalog)
-			vnums.POST("/orders", vnumHandler.CreateOrder)
+			vnums.POST("/orders", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), vnumHandler.CreateOrder)
 			vnums.GET("/orders/:order_id", vnumHandler.GetOrderDetail)
-			vnums.POST("/orders/:order_id/cancel", vnumHandler.CancelOrder)
-			vnums.POST("/orders/:order_id/finish", vnumHandler.FinishOrder)
+			vnums.POST("/orders/:order_id/cancel", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), vnumHandler.CancelOrder)
+			vnums.POST("/orders/:order_id/finish", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), vnumHandler.FinishOrder)
 		}
 
 		// Admin Endpoints

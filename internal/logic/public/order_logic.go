@@ -236,9 +236,19 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 		var payingCustomer *model.Customer
 		if req.PaymentMethod == string(model.PaymentMethodBalance) {
 			var cust model.Customer
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				Where("phone = ?", req.CustomerPhone).First(&cust).Error; err != nil {
-				return xerr.NewErrMsg("حساب کاربری یافت نشد")
+			var findErr error
+			if req.AuthCustomerID != nil {
+				findErr = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+					Where("id = ? AND is_active = ?", *req.AuthCustomerID, true).First(&cust).Error
+			} else if req.CustomerPhone != "" {
+				// Fallback when invoked directly via internal subsystems or unit tests
+				findErr = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+					Where("phone = ? AND is_active = ?", req.CustomerPhone, true).First(&cust).Error
+			} else {
+				return xerr.NewErrMsg("جهت پرداخت از موجودی کیف پول، لطفاً ابتدا وارد حساب کاربری خود شوید")
+			}
+			if findErr != nil {
+				return xerr.NewErrMsg("حساب کاربری یافت نشد یا غیرفعال است")
 			}
 			if cust.BalanceToman < totalAmountToman {
 				return xerr.NewErrMsg(fmt.Sprintf("موجودی کیف پول شما (%d تومان) برای پرداخت این سفارش (%d تومان) کافی نیست", cust.BalanceToman, totalAmountToman))
