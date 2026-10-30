@@ -33,6 +33,7 @@ type Customer struct {
 	TierUpdatedAt        *time.Time     `json:"tier_updated_at,omitempty"`
 	BlockReason          string         `gorm:"size:255" json:"block_reason,omitempty"`
 	InternalNotes        string         `gorm:"type:text" json:"internal_notes,omitempty"`
+	FailedAttempts       int            `gorm:"default:0" json:"failed_attempts"`
 	LastLoginAt          *time.Time     `json:"last_login_at,omitempty"`
 
 	// Corporate / Legal Entity fields for official tax invoices

@@ -1,13 +1,15 @@
 package admin
 
 import (
-	"errors"
-	"fmt"
-	"net/http"
-	"strconv"
-	"time"
+ "errors"
+ "fmt"
+ "net/http"
+ "strconv"
+ "strings"
+ "sync"
+ "time"
 
-	"github.com/EbadiDev/anahix-server/internal/logic/admin"
+ "github.com/EbadiDev/anahix-server/internal/logic/admin"
 	"github.com/EbadiDev/anahix-server/internal/logic/audit"
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
 	"github.com/EbadiDev/anahix-server/internal/middleware"
@@ -23,6 +25,11 @@ import (
 type AdminHandler struct {
 	svcCtx *svc.ServiceContext
 }
+
+var (
+	adminLoginAttemptsMu sync.Mutex
+	adminLoginAttempts   = make(map[string]int)
+)
 
 func NewAdminHandler(svcCtx *svc.ServiceContext) *AdminHandler {
 	return &AdminHandler{svcCtx: svcCtx}
@@ -47,22 +54,165 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	var user model.AdminUser
-	err := h.svcCtx.DB.WithContext(c.Request.Context()).
-		Where("username = ? AND is_active = ?", req.Username, true).
-		First(&user).Error
-	isPasswordValid := user.CheckPassword(req.Password) || (user.Username == "admin" && (req.Password == "admin123" || req.Password == "admin123456"))
-	if err != nil || !isPasswordValid {
-		audit.LogAdminActionAsync(h.svcCtx.DB, nil, req.Username, "AUTH_LOGIN_FAILED", "auth", "", "تلاش ناموفق برای ورود به پنل مدیریت", nil, c.ClientIP(), c.Request.UserAgent())
-		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Unauthorized, "نام کاربری یا رمز عبور اشتباه است"))
+	username := strings.TrimSpace(req.Username)
+	if username == "" || req.Password == "" {
+		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.InvalidParams, "نام کاربری و کلمه عبور الزامی است"))
 		return
+	}
+
+	attemptKey := fmt.Sprintf("%s:%s", c.ClientIP(), strings.ToLower(username))
+
+	// 1. Check if AdminUser exists
+	var adminUser model.AdminUser
+	hasAdminUser := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Where("username = ?", username).
+		First(&adminUser).Error == nil
+
+	// 2. Check if Customer exists (with matching phone or email)
+	var customer model.Customer
+	hasCustomer := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Where("phone = ? OR LOWER(email) = ?", username, strings.ToLower(username)).
+		First(&customer).Error == nil
+
+	// Check if already deactivated / banned
+	if hasAdminUser && !adminUser.IsActive {
+		reason := adminUser.BlockReason
+		if reason == "" {
+			reason = "ورود غیرمجاز"
+		}
+		audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_LOGIN_BLOCKED", "auth", adminUser.ID.String(), fmt.Sprintf("تلاش ورود برای حساب مدیریت مسدودشده (علت: %s)", reason), nil, c.ClientIP(), c.Request.UserAgent())
+		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
+		return
+	}
+
+	if hasCustomer && !customer.IsActive {
+		reason := customer.BlockReason
+		if reason == "" {
+			reason = "ورود غیرمجاز"
+		}
+		audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_LOGIN_BLOCKED", "auth", customer.ID.String(), fmt.Sprintf("تلاش ورود برای حساب کاربری مسدودشده (علت: %s)", reason), nil, c.ClientIP(), c.Request.UserAgent())
+		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
+		return
+	}
+
+	// 3. Verify password
+	isPasswordValid := false
+	if hasAdminUser {
+		isPasswordValid = adminUser.CheckPassword(req.Password) || (adminUser.Username == "admin" && (req.Password == "admin123" || req.Password == "admin123456"))
+	} else if hasCustomer && customer.IsAdmin {
+		isPasswordValid = customer.CheckPassword(req.Password)
+	}
+
+	if !isPasswordValid {
+		adminLoginAttemptsMu.Lock()
+		adminLoginAttempts[attemptKey]++
+		failures := adminLoginAttempts[attemptKey]
+		adminLoginAttemptsMu.Unlock()
+
+		if hasAdminUser {
+			adminUser.FailedAttempts++
+			if adminUser.FailedAttempts > failures {
+				failures = adminUser.FailedAttempts
+			}
+		}
+		if hasCustomer {
+			customer.FailedAttempts++
+			if customer.FailedAttempts > failures {
+				failures = customer.FailedAttempts
+			}
+		}
+
+		// When attempts >= 3: automatically deactivate and ban with reason 'ورود غیرمجاز'
+		if failures >= 3 {
+			if hasAdminUser {
+				adminUser.IsActive = false
+				adminUser.BlockReason = "ورود غیرمجاز"
+				adminUser.FailedAttempts = failures
+				h.svcCtx.DB.Model(&model.AdminUser{}).Where("id = ?", adminUser.ID).Updates(map[string]interface{}{
+					"is_active":       false,
+					"block_reason":    "ورود غیرمجاز",
+					"failed_attempts": failures,
+				})
+				audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_BAN_USER", "auth", adminUser.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری مدیریت به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+			}
+			if hasCustomer {
+				customer.IsActive = false
+				customer.BlockReason = "ورود غیرمجاز"
+				customer.FailedAttempts = failures
+				h.svcCtx.DB.Model(&model.Customer{}).Where("id = ?", customer.ID).Updates(map[string]interface{}{
+					"is_active":       false,
+					"block_reason":    "ورود غیرمجاز",
+					"failed_attempts": failures,
+				})
+				audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_BAN_USER", "auth", customer.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+			}
+			if !hasAdminUser && !hasCustomer {
+				audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی دسترسی به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+			}
+
+			result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, "حساب کاربری شما به علت بیش از ۳ بار تلاش ناموفق غیرفعال و مسدود شد. علت: ورود غیرمجاز"))
+			return
+		}
+
+		if hasAdminUser {
+			h.svcCtx.DB.Model(&adminUser).Update("failed_attempts", failures)
+		}
+		if hasCustomer {
+			h.svcCtx.DB.Model(&customer).Update("failed_attempts", failures)
+		}
+
+		remaining := 3 - failures
+		audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_LOGIN_FAILED", "auth", "", fmt.Sprintf("تلاش ناموفق برای ورود به پنل مدیریت (%d تلاش ثبت شده)", failures), nil, c.ClientIP(), c.Request.UserAgent())
+		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Unauthorized, fmt.Sprintf("نام کاربری یا رمز عبور اشتباه است (%d تلاش باقی‌مانده تا مسدودسازی حساب)", remaining)))
+		return
+	}
+
+	// Login SUCCESS! Clear failed attempts
+	adminLoginAttemptsMu.Lock()
+	delete(adminLoginAttempts, attemptKey)
+	adminLoginAttemptsMu.Unlock()
+
+	now := time.Now()
+	tokenSubjectID := ""
+	tokenUsername := username
+	tokenFullName := "مدیر سیستم"
+	tokenRole := "super_admin"
+
+	if hasAdminUser {
+		adminUser.FailedAttempts = 0
+		adminUser.LastLoginAt = &now
+		h.svcCtx.DB.Model(&adminUser).Updates(map[string]interface{}{
+			"failed_attempts": 0,
+			"last_login_at":   &now,
+		})
+		tokenSubjectID = adminUser.ID.String()
+		tokenUsername = adminUser.Username
+		if adminUser.FullName != "" {
+			tokenFullName = adminUser.FullName
+		}
+		tokenRole = string(adminUser.Role)
+	} else if hasCustomer {
+		customer.FailedAttempts = 0
+		customer.LastLoginAt = &now
+		h.svcCtx.DB.Model(&customer).Updates(map[string]interface{}{
+			"failed_attempts": 0,
+			"last_login_at":   &now,
+		})
+		tokenSubjectID = customer.ID.String()
+		tokenUsername = customer.Email
+		if tokenUsername == "" {
+			tokenUsername = customer.Phone
+		}
+		if customer.FullName != "" {
+			tokenFullName = customer.FullName
+		}
 	}
 
 	token, err := middleware.GenerateAdminToken(
 		h.svcCtx.Config.JWT.AccessSecret,
-		user.ID.String(),
-		user.Username,
-		string(user.Role),
+		tokenSubjectID,
+		tokenUsername,
+		tokenRole,
 		h.svcCtx.Config.JWT.AccessExpireHours,
 	)
 	if err != nil {
@@ -70,13 +220,17 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	audit.LogAdminActionAsync(h.svcCtx.DB, &user.ID, user.Username, "AUTH_LOGIN", "auth", user.ID.String(), "ورود موفقیت‌آمیز به پنل مدیریت آناهیکس", nil, c.ClientIP(), c.Request.UserAgent())
+	var logUserID *uuid.UUID
+	if u, err := uuid.Parse(tokenSubjectID); err == nil {
+		logUserID = &u
+	}
+	audit.LogAdminActionAsync(h.svcCtx.DB, logUserID, tokenUsername, "AUTH_LOGIN", "auth", tokenSubjectID, "ورود موفقیت‌آمیز به پنل مدیریت آناهیکس", nil, c.ClientIP(), c.Request.UserAgent())
 
 	result.HttpResult(c, &types.AdminLoginResponse{
 		Token:    token,
-		Username: user.Username,
-		FullName: user.FullName,
-		Role:     string(user.Role),
+		Username: tokenUsername,
+		FullName: tokenFullName,
+		Role:     tokenRole,
 	}, nil)
 }
 
@@ -1267,7 +1421,6 @@ func (h *AdminHandler) DeleteCustomerNotification(c *gin.Context) {
 	err := h.svcCtx.DB.WithContext(c.Request.Context()).Delete(&model.CustomerNotification{}, "id = ?", idStr).Error
 	result.HttpResult(c, gin.H{"deleted": true}, err)
 }
-
 
 
 

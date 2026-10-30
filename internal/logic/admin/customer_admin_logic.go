@@ -137,37 +137,89 @@ func (l *CustomerAdminLogic) ListCustomers(req *types.AdminListCustomersRequest)
 	now := time.Now()
 	items := make([]types.AdminCustomerListItem, 0, len(customers))
 
+	// Batch aggregate store orders and virtual numbers to eliminate N+1 queries
+	type OrderAgg struct {
+		CustomerID    *uuid.UUID `gorm:"column:customer_id"`
+		CustomerPhone string     `gorm:"column:customer_phone"`
+		Count         int64      `gorm:"column:count"`
+		Sum           int64      `gorm:"column:sum"`
+	}
+
+	custIDs := make([]uuid.UUID, 0, len(customers))
+	custPhones := make([]string, 0, len(customers))
 	for _, c := range customers {
-		// Calculate store orders count and total spent
+		custIDs = append(custIDs, c.ID)
+		if c.Phone != "" {
+			custPhones = append(custPhones, c.Phone)
+		}
+	}
+
+	storeOrdersMap := make(map[string]struct{ Count, Sum int64 })
+	if len(custIDs) > 0 {
+		var storeAggs []OrderAgg
+		_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.Order{}).
+			Select("customer_id, customer_phone, count(*) as count, COALESCE(SUM(total_amount_toman), 0) as sum").
+			Where("(customer_id IN ? OR customer_phone IN ?) AND status NOT IN ('pending_payment', 'cancelled')", custIDs, custPhones).
+			Group("customer_id, customer_phone").
+			Scan(&storeAggs).Error
+		for _, sa := range storeAggs {
+			if sa.CustomerID != nil {
+				key := sa.CustomerID.String()
+				existing := storeOrdersMap[key]
+				storeOrdersMap[key] = struct{ Count, Sum int64 }{
+					Count: existing.Count + sa.Count,
+					Sum:   existing.Sum + sa.Sum,
+				}
+			}
+			if sa.CustomerPhone != "" {
+				key := sa.CustomerPhone
+				existing := storeOrdersMap[key]
+				storeOrdersMap[key] = struct{ Count, Sum int64 }{
+					Count: existing.Count + sa.Count,
+					Sum:   existing.Sum + sa.Sum,
+				}
+			}
+		}
+	}
+
+	vNumOrdersMap := make(map[string]struct{ Count, Sum int64 })
+	if len(custPhones) > 0 {
+		type VNumAgg struct {
+			CustomerPhone string `gorm:"column:customer_phone"`
+			Count         int64  `gorm:"column:count"`
+			Sum           int64  `gorm:"column:sum"`
+		}
+		var vNumAggs []VNumAgg
+		_ = l.svcCtx.DB.WithContext(l.ctx).Model(&model.VirtualNumberOrder{}).
+			Select("customer_phone, count(*) as count, COALESCE(SUM(price_toman), 0) as sum").
+			Where("customer_phone IN ? AND status NOT IN ('CANCELED', 'TIMEOUT')", custPhones).
+			Group("customer_phone").
+			Scan(&vNumAggs).Error
+		for _, va := range vNumAggs {
+			vNumOrdersMap[va.CustomerPhone] = struct{ Count, Sum int64 }{
+				Count: va.Count,
+				Sum:   va.Sum,
+			}
+		}
+	}
+
+	for _, c := range customers {
 		var storeOrdersCount int64
 		var storeTotalSpent int64
-		l.svcCtx.DB.WithContext(l.ctx).Model(&model.Order{}).
-			Where("(customer_id = ? OR customer_phone = ?) AND status NOT IN ('pending_payment', 'cancelled')", c.ID, c.Phone).
-			Count(&storeOrdersCount)
-
-		type SpentSum struct {
-			Sum int64
+		if byID, ok := storeOrdersMap[c.ID.String()]; ok {
+			storeOrdersCount = byID.Count
+			storeTotalSpent = byID.Sum
+		} else if byPhone, ok := storeOrdersMap[c.Phone]; ok {
+			storeOrdersCount = byPhone.Count
+			storeTotalSpent = byPhone.Sum
 		}
-		var sSum SpentSum
-		l.svcCtx.DB.WithContext(l.ctx).Model(&model.Order{}).
-			Select("COALESCE(SUM(total_amount_toman), 0) as sum").
-			Where("(customer_id = ? OR customer_phone = ?) AND status NOT IN ('pending_payment', 'cancelled')", c.ID, c.Phone).
-			Scan(&sSum)
-		storeTotalSpent = sSum.Sum
 
-		// Calculate virtual number orders count and spent
 		var vNumOrdersCount int64
 		var vNumTotalSpent int64
-		l.svcCtx.DB.WithContext(l.ctx).Model(&model.VirtualNumberOrder{}).
-			Where("customer_phone = ? AND status NOT IN ('CANCELED', 'TIMEOUT')", c.Phone).
-			Count(&vNumOrdersCount)
-
-		var vSum SpentSum
-		l.svcCtx.DB.WithContext(l.ctx).Model(&model.VirtualNumberOrder{}).
-			Select("COALESCE(SUM(price_toman), 0) as sum").
-			Where("customer_phone = ? AND status NOT IN ('CANCELED', 'TIMEOUT')", c.Phone).
-			Scan(&vSum)
-		vNumTotalSpent = vSum.Sum
+		if vAgg, ok := vNumOrdersMap[c.Phone]; ok {
+			vNumOrdersCount = vAgg.Count
+			vNumTotalSpent = vAgg.Sum
+		}
 
 		totalOrdersCount := storeOrdersCount + vNumOrdersCount
 		totalSpentToman := storeTotalSpent + vNumTotalSpent

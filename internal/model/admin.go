@@ -21,9 +21,11 @@ type AdminUser struct {
 	Username     string         `gorm:"size:60;uniqueIndex;not null" json:"username"`
 	PasswordHash string         `gorm:"size:255;not null" json:"-"`
 	FullName     string         `gorm:"size:120" json:"full_name"`
-	Role         AdminRole      `gorm:"size:30;not null;default:'operator'" json:"role"`
-	IsActive     bool           `gorm:"default:true;index" json:"is_active"`
-	LastLoginAt  *time.Time     `json:"last_login_at,omitempty"`
+	Role           AdminRole      `gorm:"size:30;not null;default:'operator'" json:"role"`
+	IsActive       bool           `gorm:"default:true;index" json:"is_active"`
+	BlockReason    string         `gorm:"size:255" json:"block_reason,omitempty"`
+	FailedAttempts int            `gorm:"default:0" json:"failed_attempts"`
+	LastLoginAt    *time.Time     `json:"last_login_at,omitempty"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
