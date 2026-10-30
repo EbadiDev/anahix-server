@@ -202,6 +202,8 @@ func (l *ThemeLogic) GetActiveTheme() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.FooterMenuJSON = s.Value
 			}
+		case "footer_services_json":
+			res.FooterServicesJSON = s.Value
 		case "footer_badges_json":
 			res.FooterBadgesJSON = s.Value
 		case "footer_description":

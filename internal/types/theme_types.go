@@ -30,6 +30,7 @@ type ThemeSettingsResponse struct {
 	SupportTelegram               string `json:"support_telegram,omitempty"`
 	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
 	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	FooterServicesJSON            string `json:"footer_services_json,omitempty"`
 	FooterBadgesJSON              string `json:"footer_badges_json,omitempty"`
 	FooterDescription             string `json:"footer_description,omitempty"`
 	SMSApiKey                     string `json:"sms_api_key,omitempty"`
@@ -86,6 +87,7 @@ type UpdateThemeSettingsRequest struct {
 	SupportTelegram               string `json:"support_telegram,omitempty"`
 	HeaderMenuJSON                string `json:"header_menu_json,omitempty"`
 	FooterMenuJSON                string `json:"footer_menu_json,omitempty"`
+	FooterServicesJSON            string `json:"footer_services_json,omitempty"`
 	FooterBadgesJSON              string `json:"footer_badges_json,omitempty"`
 	FooterDescription             string `json:"footer_description,omitempty"`
 	SMSApiKey                     string `json:"sms_api_key,omitempty"`

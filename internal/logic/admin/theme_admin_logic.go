@@ -201,6 +201,8 @@ func (l *ThemeAdminLogic) GetSettings() (*types.ThemeSettingsResponse, error) {
 			if s.Value != "" {
 				res.FooterMenuJSON = s.Value
 			}
+		case "footer_services_json":
+			res.FooterServicesJSON = s.Value
 		case "footer_badges_json":
 			res.FooterBadgesJSON = s.Value
 		case "footer_description":
@@ -485,6 +487,11 @@ func (l *ThemeAdminLogic) UpdateSettings(req *types.UpdateThemeSettingsRequest) 
 	if req.FooterMenuJSON != "" {
 		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
 			Category: "menus", Key: "footer_menu_json", Value: req.FooterMenuJSON, Type: "string", Desc: "پیکربندی منوی فوتر سایت",
+		})
+	}
+	if req.FooterServicesJSON != "" {
+		settingsToUpsert = append(settingsToUpsert, model.SystemSetting{
+			Category: "menus", Key: "footer_services_json", Value: req.FooterServicesJSON, Type: "json", Desc: "سرویس‌های پرطرفدار فوتر",
 		})
 	}
 	if req.FooterBadgesJSON != "" {
