@@ -51,3 +51,20 @@ func (a *AdminUser) CheckPassword(plain string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(a.PasswordHash), []byte(plain))
 	return err == nil
 }
+
+type BannedIP struct {
+	ID         uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	IPAddress  string         `gorm:"size:64;uniqueIndex;not null" json:"ip_address"`
+	Reason     string         `gorm:"size:255;not null" json:"reason"`
+	Username   string         `gorm:"size:120" json:"username,omitempty"`
+	IsSiteUser bool           `gorm:"default:true" json:"is_site_user"`
+	CreatedAt  time.Time      `json:"created_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
+}
+
+func (b *BannedIP) BeforeCreate(tx *gorm.DB) error {
+	if b.ID == uuid.Nil {
+		b.ID = uuid.New()
+	}
+	return nil
+}

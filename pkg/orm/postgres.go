@@ -62,6 +62,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&model.OrderItem{},
 		&model.ExchangeRateSetting{},
 		&model.AdminUser{},
+		&model.BannedIP{},
 		&model.Payment{},
 		&model.SystemSetting{},
 		&model.VirtualNumberOrder{},

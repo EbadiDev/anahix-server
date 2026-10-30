@@ -199,6 +199,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		{
 			// Auth
 			adminGroup.POST("/auth/login", admHandler.Login)
+			adminGroup.GET("/auth/check-ip", admHandler.CheckIPStatus)
 			adminGroup.POST("/auth/exchange", middleware.CustomerAuthMiddleware(svcCtx.Config.JWT.AccessSecret), admHandler.ExchangeCustomerToken)
 
 			// Protected Admin Routes

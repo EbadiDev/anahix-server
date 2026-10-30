@@ -31,6 +31,39 @@ var (
 	adminLoginAttempts   = make(map[string]int)
 )
 
+func toPersianDigits(n int) string {
+	s := strconv.Itoa(n)
+	replacer := strings.NewReplacer(
+		"0", "۰", "1", "۱", "2", "۲", "3", "۳", "4", "۴",
+		"5", "۵", "6", "۶", "7", "۷", "8", "۸", "9", "۹",
+	)
+	return replacer.Replace(s)
+}
+
+func (h *AdminHandler) CheckIPStatus(c *gin.Context) {
+	clientIP := c.ClientIP()
+
+	var banned model.BannedIP
+	err := h.svcCtx.DB.WithContext(c.Request.Context()).
+		Where("ip_address = ?", clientIP).
+		First(&banned).Error
+	if err == nil {
+		result.HttpResult(c, gin.H{
+			"is_banned":    true,
+			"reason":       banned.Reason,
+			"is_site_user": banned.IsSiteUser,
+			"kick_out":     !banned.IsSiteUser,
+			"ip":           clientIP,
+		}, nil)
+		return
+	}
+
+	result.HttpResult(c, gin.H{
+		"is_banned": false,
+		"ip":        clientIP,
+	}, nil)
+}
+
 func NewAdminHandler(svcCtx *svc.ServiceContext) *AdminHandler {
 	return &AdminHandler{svcCtx: svcCtx}
 }
@@ -60,7 +93,19 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		return
 	}
 
-	attemptKey := fmt.Sprintf("%s:%s", c.ClientIP(), strings.ToLower(username))
+	clientIP := c.ClientIP()
+	attemptKey := fmt.Sprintf("%s:%s", clientIP, strings.ToLower(username))
+
+	// 0. Check if client IP is ALREADY banned
+	var bannedIP model.BannedIP
+	if h.svcCtx.DB.WithContext(c.Request.Context()).Where("ip_address = ?", clientIP).First(&bannedIP).Error == nil {
+		result.HttpResult(c, gin.H{
+			"is_banned":    true,
+			"is_site_user": bannedIP.IsSiteUser,
+			"kick_out":     !bannedIP.IsSiteUser,
+		}, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("دسترسی این آدرس IP مسدود است. علت: %s", bannedIP.Reason)))
+		return
+	}
 
 	// 1. Check if AdminUser exists
 	var adminUser model.AdminUser
@@ -74,14 +119,42 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		Where("phone = ? OR LOWER(email) = ?", username, strings.ToLower(username)).
 		First(&customer).Error == nil
 
+	// 3. User is NOT in the database at all!
+	// "اگر کلا جز کاربران سایت نیست بهش اجازه ی این آدرس رو نده /admin/login و بنداز بیرون از این صفحه"
+	if !hasAdminUser && !hasCustomer {
+		h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
+			IPAddress:  clientIP,
+			Reason:     "ورود غیرمجاز",
+			Username:   username,
+			IsSiteUser: false,
+		})
+		audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی IP و اخراج به علت تلاش ورود با هویت نامعتبر و غیرعضو (ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
+		result.HttpResult(c, gin.H{
+			"is_banned":    true,
+			"is_site_user": false,
+			"kick_out":     true,
+		}, xerr.NewErrCodeMsg(xerr.Forbidden, "دسترسی غیرمجاز. شما کاربر این سامانه نیستید و دسترسی شما مسدود شد."))
+		return
+	}
+
 	// Check if already deactivated / banned
 	if hasAdminUser && !adminUser.IsActive {
 		reason := adminUser.BlockReason
 		if reason == "" {
 			reason = "ورود غیرمجاز"
 		}
-		audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_LOGIN_BLOCKED", "auth", adminUser.ID.String(), fmt.Sprintf("تلاش ورود برای حساب مدیریت مسدودشده (علت: %s)", reason), nil, c.ClientIP(), c.Request.UserAgent())
-		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
+		h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
+			IPAddress:  clientIP,
+			Reason:     reason,
+			Username:   adminUser.Username,
+			IsSiteUser: true,
+		})
+		audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_LOGIN_BLOCKED", "auth", adminUser.ID.String(), fmt.Sprintf("تلاش ورود برای حساب مدیریت مسدودشده (علت: %s)", reason), nil, clientIP, c.Request.UserAgent())
+		result.HttpResult(c, gin.H{
+			"is_banned":    true,
+			"is_site_user": true,
+			"kick_out":     false,
+		}, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
 		return
 	}
 
@@ -90,8 +163,18 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		if reason == "" {
 			reason = "ورود غیرمجاز"
 		}
-		audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_LOGIN_BLOCKED", "auth", customer.ID.String(), fmt.Sprintf("تلاش ورود برای حساب کاربری مسدودشده (علت: %s)", reason), nil, c.ClientIP(), c.Request.UserAgent())
-		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
+		h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
+			IPAddress:  clientIP,
+			Reason:     reason,
+			Username:   customer.Phone,
+			IsSiteUser: true,
+		})
+		audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_LOGIN_BLOCKED", "auth", customer.ID.String(), fmt.Sprintf("تلاش ورود برای حساب کاربری مسدودشده (علت: %s)", reason), nil, clientIP, c.Request.UserAgent())
+		result.HttpResult(c, gin.H{
+			"is_banned":    true,
+			"is_site_user": true,
+			"kick_out":     false,
+		}, xerr.NewErrCodeMsg(xerr.Forbidden, fmt.Sprintf("حساب کاربری شما غیرفعال و مسدود شده است. علت: %s", reason)))
 		return
 	}
 
@@ -124,6 +207,14 @@ func (h *AdminHandler) Login(c *gin.Context) {
 
 		// When attempts >= 3: automatically deactivate and ban with reason 'ورود غیرمجاز'
 		if failures >= 3 {
+			// Persist IP ban
+			h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
+				IPAddress:  clientIP,
+				Reason:     "ورود غیرمجاز",
+				Username:   username,
+				IsSiteUser: true,
+			})
+
 			if hasAdminUser {
 				adminUser.IsActive = false
 				adminUser.BlockReason = "ورود غیرمجاز"
@@ -133,7 +224,7 @@ func (h *AdminHandler) Login(c *gin.Context) {
 					"block_reason":    "ورود غیرمجاز",
 					"failed_attempts": failures,
 				})
-				audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_BAN_USER", "auth", adminUser.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری مدیریت به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+				audit.LogAdminActionAsync(h.svcCtx.DB, &adminUser.ID, adminUser.Username, "AUTH_BAN_USER", "auth", adminUser.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری مدیریت به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
 			}
 			if hasCustomer {
 				customer.IsActive = false
@@ -144,13 +235,17 @@ func (h *AdminHandler) Login(c *gin.Context) {
 					"block_reason":    "ورود غیرمجاز",
 					"failed_attempts": failures,
 				})
-				audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_BAN_USER", "auth", customer.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+				audit.LogAdminActionAsync(h.svcCtx.DB, &customer.ID, customer.Phone, "AUTH_BAN_USER", "auth", customer.ID.String(), "غیرفعال‌سازی و مسدودسازی خودکار حساب کاربری به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
 			}
 			if !hasAdminUser && !hasCustomer {
-				audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی دسترسی به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, c.ClientIP(), c.Request.UserAgent())
+				audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی دسترسی به علت بیش از ۳ بار تلاش ناموفق (علت: ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
 			}
 
-			result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Forbidden, "حساب کاربری شما به علت بیش از ۳ بار تلاش ناموفق غیرفعال و مسدود شد. علت: ورود غیرمجاز"))
+			result.HttpResult(c, gin.H{
+				"is_banned":    true,
+				"is_site_user": true,
+				"kick_out":     false,
+			}, xerr.NewErrCodeMsg(xerr.Forbidden, "حساب کاربری شما به علت بیش از ۳ بار تلاش ناموفق غیرفعال و مسدود شد. علت: ورود غیرمجاز"))
 			return
 		}
 
@@ -162,8 +257,12 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		}
 
 		remaining := 3 - failures
-		audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_LOGIN_FAILED", "auth", "", fmt.Sprintf("تلاش ناموفق برای ورود به پنل مدیریت (%d تلاش ثبت شده)", failures), nil, c.ClientIP(), c.Request.UserAgent())
-		result.HttpResult(c, nil, xerr.NewErrCodeMsg(xerr.Unauthorized, fmt.Sprintf("نام کاربری یا رمز عبور اشتباه است (%d تلاش باقی‌مانده تا مسدودسازی حساب)", remaining)))
+		remainingFa := toPersianDigits(remaining)
+		audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_LOGIN_FAILED", "auth", "", fmt.Sprintf("تلاش ناموفق برای ورود به پنل مدیریت (%d تلاش ثبت شده)", failures), nil, clientIP, c.Request.UserAgent())
+		result.HttpResult(c, gin.H{
+			"is_banned": false,
+			"remaining": remaining,
+		}, xerr.NewErrCodeMsg(xerr.Unauthorized, fmt.Sprintf("نام کاربری یا رمز عبور اشتباه است (%s تلاش باقی‌مانده تا مسدودسازی حساب)", remainingFa)))
 		return
 	}
 
