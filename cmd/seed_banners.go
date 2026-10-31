@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"log"
-	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/model"
@@ -107,78 +106,7 @@ func seedBannersAndThemeData(db *gorm.DB) {
 		log.Println("🌱 Seeded theme and multi-auth system configurations")
 	}
 
-	// 3. Update sample products with Flash Sale and high-res Images
-	var products []model.Product
-	db.Find(&products)
-	futureDate := time.Now().Add(72 * time.Hour)
-
-	for _, p := range products {
-		updates := map[string]interface{}{}
-		slug := strings.ToLower(p.Slug)
-
-		if strings.Contains(slug, "gemini") {
-			updates["image_url"] = "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=800&auto=format&fit=crop"
-			updates["is_flash_sale"] = true
-			updates["flash_sale_price_toman"] = 990000 // ~33% off 1,480,000
-			updates["flash_sale_end_at"] = futureDate
-			updates["flash_sale_stock"] = 60
-			updates["flash_sale_sold"] = 41
-			updates["is_best_seller"] = true
-			updates["is_featured"] = true
-			updates["rating_average"] = 4.95
-			updates["sales_count"] = 1240
-			updates["badges_json"] = `["۳۳٪ تخفیف شگفت‌انگیز", "۲ ترابایت فضای ابری", "۱۸ ماهه قانونی"]`
-		} else if strings.Contains(slug, "chatgpt") {
-			updates["image_url"] = "https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=800&auto=format&fit=crop"
-			updates["is_flash_sale"] = true
-			updates["flash_sale_price_toman"] = 1560000 // 20% off 1,950,000
-			updates["flash_sale_end_at"] = time.Now().Add(96 * time.Hour)
-			updates["flash_sale_stock"] = 50
-			updates["flash_sale_sold"] = 34
-			updates["is_best_seller"] = true
-			updates["is_featured"] = true
-			updates["rating_average"] = 4.98
-			updates["sales_count"] = 2410
-			updates["badges_json"] = `["۲۰٪ تخفیف ویژه", "ارتقای قانونی ایمیل شخصی", "پروتکل امنیتی Zeroize"]`
-		} else if strings.Contains(slug, "claude") {
-			updates["image_url"] = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop"
-			updates["is_flash_sale"] = true
-			updates["flash_sale_price_toman"] = 1417000 // 25% off 1,890,000
-			updates["flash_sale_end_at"] = time.Now().Add(48 * time.Hour)
-			updates["flash_sale_stock"] = 40
-			updates["flash_sale_sold"] = 28
-			updates["is_best_seller"] = true
-			updates["is_featured"] = true
-			updates["rating_average"] = 4.92
-			updates["sales_count"] = 890
-			updates["badges_json"] = `["۲۵٪ تخفیف زمان‌دار", "مدل Sonnet 3.7", "اکانت آماده اختصاصی"]`
-		} else if strings.Contains(slug, "cursor") {
-			updates["image_url"] = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=800&auto=format&fit=crop"
-			updates["is_flash_sale"] = true
-			updates["flash_sale_price_toman"] = 1225000 // 30% off 1,750,000
-			updates["flash_sale_end_at"] = time.Now().Add(120 * time.Hour)
-			updates["flash_sale_stock"] = 45
-			updates["flash_sale_sold"] = 31
-			updates["is_best_seller"] = true
-			updates["is_featured"] = true
-			updates["rating_average"] = 4.94
-			updates["sales_count"] = 680
-			updates["badges_json"] = `["۳۰٪ تخفیف ویژه برنامه‌نویسان", "دستیار کدنویسی AI", "تحویل فوری"]`
-		} else {
-			if p.ImageURL == "" {
-				updates["image_url"] = "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=800&auto=format&fit=crop"
-			}
-			updates["rating_average"] = 4.88
-			updates["sales_count"] = 420
-			updates["badges_json"] = `["تحویل قانونی", "ضمانت بازگشت وجه"]`
-		}
-
-		if len(updates) > 0 {
-			db.Model(&model.Product{}).Where("id = ?", p.ID).Updates(updates)
-		}
-	}
-
-	// 4. Ensure Midjourney test offer product exists
+	// 3. Ensure Midjourney test offer product exists
 	var midjourneyCount int64
 	db.Model(&model.Product{}).Where("slug = ?", "midjourney-pro-1m").Count(&midjourneyCount)
 	if midjourneyCount == 0 {
@@ -198,7 +126,7 @@ func seedBannersAndThemeData(db *gorm.DB) {
 			BaseCostUSD:         25,
 			PriceToman:          2400000,
 			IsActive:            true,
-			ImageURL:            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop",
+			ImageURL:            "",
 			IsFlashSale:         true,
 			FlashSalePriceToman: 1680000, // 30% discount
 			FlashSaleEndAt:      &endAt,
@@ -206,13 +134,13 @@ func seedBannersAndThemeData(db *gorm.DB) {
 			FlashSaleSold:       19,
 			IsBestSeller:        true,
 			IsFeatured:          true,
-			RatingAverage:       4.96,
+			RatingAverage:       4.9,
 			SalesCount:          510,
 			BadgesJSON:          `["۳۰٪ تخفیف جشنواره", "تولید نامحدود تصویر", "Stealth Mode"]`,
 			GroupTag:            "midjourney",
 			GroupTitleFA:        "میدجورنی (Midjourney AI)",
-			CreatedAt:           nowTime,
-			UpdatedAt:           nowTime,
+			CreatedAt:           time.Now(),
+			UpdatedAt:           time.Now(),
 		}
 		db.Create(&mj)
 		log.Println("🌱 Seeded Midjourney Pro test offer product (table: 'products')")

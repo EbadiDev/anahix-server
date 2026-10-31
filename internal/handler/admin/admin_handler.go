@@ -42,6 +42,13 @@ func toPersianDigits(n int) string {
 
 func (h *AdminHandler) CheckIPStatus(c *gin.Context) {
 	clientIP := c.ClientIP()
+	if clientIP == "127.0.0.1" || clientIP == "::1" || clientIP == "localhost" {
+		result.HttpResult(c, gin.H{
+			"is_banned": false,
+			"ip":        clientIP,
+		}, nil)
+		return
+	}
 
 	var banned model.BannedIP
 	err := h.svcCtx.DB.WithContext(c.Request.Context()).
@@ -120,20 +127,22 @@ func (h *AdminHandler) Login(c *gin.Context) {
 		First(&customer).Error == nil
 
 	// 3. User is NOT in the database at all!
-	// "اگر کلا جز کاربران سایت نیست بهش اجازه ی این آدرس رو نده /admin/login و بنداز بیرون از این صفحه"
 	if !hasAdminUser && !hasCustomer {
-		h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
-			IPAddress:  clientIP,
-			Reason:     "ورود غیرمجاز",
-			Username:   username,
-			IsSiteUser: false,
-		})
-		audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی IP و اخراج به علت تلاش ورود با هویت نامعتبر و غیرعضو (ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
+		isLocalIP := clientIP == "127.0.0.1" || clientIP == "::1" || clientIP == "localhost"
+		if !isLocalIP {
+			h.svcCtx.DB.Where("ip_address = ?", clientIP).FirstOrCreate(&model.BannedIP{
+				IPAddress:  clientIP,
+				Reason:     "ورود غیرمجاز",
+				Username:   username,
+				IsSiteUser: false,
+			})
+			audit.LogAdminActionAsync(h.svcCtx.DB, nil, username, "AUTH_BAN_IP", "auth", "", "مسدودسازی IP و اخراج به علت تلاش ورود با هویت نامعتبر و غیرعضو (ورود غیرمجاز)", nil, clientIP, c.Request.UserAgent())
+		}
 		result.HttpResult(c, gin.H{
-			"is_banned":    true,
+			"is_banned":    !isLocalIP,
 			"is_site_user": false,
 			"kick_out":     true,
-		}, xerr.NewErrCodeMsg(xerr.Forbidden, "دسترسی غیرمجاز. شما کاربر این سامانه نیستید و دسترسی شما مسدود شد."))
+		}, xerr.NewErrCodeMsg(xerr.Forbidden, "نام کاربری یا کلمه عبور نادرست است."))
 		return
 	}
 
@@ -627,6 +636,16 @@ func (h *AdminHandler) UpdateGroupDeliveryStrategy(c *gin.Context) {
 	result.HttpResult(c, gin.H{"status": "ok"}, err)
 }
 
+func (h *AdminHandler) DeleteProductGroup(c *gin.Context) {
+	groupTag := c.Param("group_tag")
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	err := l.DeleteProductGroup(groupTag)
+	if err == nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "DELETE_PRODUCT_GROUP", "delivery_engine", groupTag, fmt.Sprintf("حذف گروه برند %s و ارجاع محصولات به عمومی", groupTag), nil, c.ClientIP(), c.Request.UserAgent())
+	}
+	result.HttpResult(c, gin.H{"status": "deleted"}, err)
+}
+
 func (h *AdminHandler) LinkProductProvider(c *gin.Context) {
 	var req types.LinkProductProviderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -685,6 +704,15 @@ func (h *AdminHandler) GetBotCatalog(c *gin.Context) {
 
 	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.GetBotCatalog(providerKey, forceRefresh)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *AdminHandler) SyncInventoryWithBots(c *gin.Context) {
+	l := admin.NewDeliveryEngineLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.SyncInventoryWithBots()
+	if err == nil && resp != nil {
+		audit.LogAdminActionAsync(h.svcCtx.DB, getAdminID(c), c.GetString("username"), "SYNC_BOT_INVENTORY", "delivery_engine", "", fmt.Sprintf("همگام‌سازی موجودی انبار با ربات‌ها (%d محصول)", resp.SyncedProductsCount), nil, c.ClientIP(), c.Request.UserAgent())
+	}
 	result.HttpResult(c, resp, err)
 }
 
@@ -1337,9 +1365,11 @@ func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
 	}
 
 	var req struct {
+		Name        *string `json:"name"`
 		NameFA      *string `json:"name_fa"`
 		Icon        *string `json:"icon"`
 		Description *string `json:"description"`
+		Config      *string `json:"config"`
 		Enable      *bool   `json:"enable"`
 		DisplayMode *string `json:"display_mode"`
 		Sort        *int    `json:"sort"`
@@ -1349,6 +1379,9 @@ func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
 		return
 	}
 
+	if req.Name != nil {
+		p.Name = *req.Name
+	}
 	if req.NameFA != nil {
 		p.NameFA = *req.NameFA
 	}
@@ -1357,6 +1390,9 @@ func (h *AdminHandler) UpdatePaymentGateway(c *gin.Context) {
 	}
 	if req.Description != nil {
 		p.Description = *req.Description
+	}
+	if req.Config != nil {
+		p.Config = *req.Config
 	}
 	if req.DisplayMode != nil {
 		p.DisplayMode = *req.DisplayMode

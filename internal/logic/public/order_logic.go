@@ -14,6 +14,7 @@ import (
 	"github.com/EbadiDev/anahix-server/internal/logic/loyalty"
 	"github.com/EbadiDev/anahix-server/internal/logic/notification"
 	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
+	"github.com/EbadiDev/anahix-server/internal/logic/provider/payment"
 	"github.com/EbadiDev/anahix-server/internal/model"
 	"github.com/EbadiDev/anahix-server/internal/svc"
 	"github.com/EbadiDev/anahix-server/internal/types"
@@ -82,40 +83,43 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 
 	validateStock := func(prod *model.Product, qty int) error {
 		if prod.StockMode == "out_of_stock" {
-			return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است و امکان خرید وجود ندارد", prod.TitleFA))
+			return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است و امکان خرید وجود ندارد", prod.TitleFA))
 		}
 		if prod.StockMode == "always_in_stock" {
 			return nil
 		}
 		if prod.StockMode == "manual" {
 			if prod.ManualStock <= 0 {
-				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
 			}
 			if prod.ManualStock < qty {
-				return xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
 			}
 			return nil
 		}
-		// Automatic / Instant stock verification
-		if prod.DeliveryStrategy == "third_party_instant" || prod.ExternalProvider != "" {
+		// If third-party instant bot product (linked to external supplier with an external product ID)
+		isThirdPartyBot := (prod.ExternalProductID > 0 || prod.ExternalProductIDStr != "") &&
+			(prod.DeliveryStrategy == "third_party_instant" || (prod.ExternalProvider != "" && prod.ExternalProvider != "manual_vault"))
+		if isThirdPartyBot {
 			if prod.ManualStock <= 0 {
-				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
 			}
 			if prod.ManualStock < qty {
-				return xerr.NewErrMsg(fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("موجودی محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, prod.ManualStock))
 			}
 			return nil
 		}
+		// Local inventory instant delivery (keys/links stored in inventory_items)
 		if prod.DeliveryType == model.DeliveryInstant {
 			var count int64
 			l.svcCtx.DB.WithContext(l.ctx).Model(&model.InventoryItem{}).
 				Where("product_id = ? AND status = ?", prod.ID, model.InventoryAvailable).
 				Count(&count)
 			if count <= 0 {
-				return xerr.NewErrMsg(fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("محصول «%s» در حال حاضر ناموجود است (موجودی صفر)", prod.TitleFA))
 			}
 			if count < int64(qty) {
-				return xerr.NewErrMsg(fmt.Sprintf("موجودی کلیدهای محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, count))
+				return xerr.NewErrCodeMsg(xerr.OutOfStock, fmt.Sprintf("موجودی کلیدهای محصول «%s» کافی نمی‌باشد (موجودی فعلی: %d عدد)", prod.TitleFA, count))
 			}
 		}
 		return nil
@@ -735,6 +739,32 @@ func (l *OrderLogic) CreateOrder(req *types.CreateOrderRequest) (*types.CreateOr
 	}
 
 	paymentURL := fmt.Sprintf("/checkout/pay/%s?token=%s", createdOrder.ID.String(), accessToken)
+	if createdOrder.PaymentMethod == model.PaymentMethodPayping {
+		var paypingGW model.Payment
+		token := ""
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("platform = ?", model.PlatformPayPing).First(&paypingGW).Error; err == nil {
+			var cfg map[string]interface{}
+			_ = json.Unmarshal([]byte(paypingGW.Config), &cfg)
+			if t, ok := cfg["token"].(string); ok {
+				token = t
+			}
+		}
+
+		returnURL := fmt.Sprintf("/payment/callback/payping?order_no=%s&token=%s", createdOrder.OrderNumber, accessToken)
+		code, gotoURL, ppErr := l.svcCtx.PayPingClient.RequestPayment(l.ctx, token, payment.PayPingCreateRequest{
+			Amount:        createdOrder.TotalAmountToman,
+			PayerIdentity: createdOrder.CustomerPhone,
+			Description:   fmt.Sprintf("خرید سفارش #%s از فروشگاه", createdOrder.OrderNumber),
+			ReturnUrl:     returnURL,
+			ClientRefId:   createdOrder.OrderNumber,
+		})
+		if ppErr == nil && gotoURL != "" {
+			paymentURL = gotoURL
+			if code != "" {
+				_ = l.svcCtx.DB.WithContext(l.ctx).Model(&createdOrder).Update("payment_authority", code).Error
+			}
+		}
+	}
 
 	return &types.CreateOrderResponse{
 		OrderID:             createdOrder.ID.String(),
@@ -791,10 +821,10 @@ func (l *OrderLogic) GetOrderDetail(orderIDOrNo string, token string) (*types.Or
 
 	// If the order is paid or completed AND token matches, decrypt any fulfilled items
 	isDelivered := order.Status == model.OrderPaid || order.Status == model.OrderCompleted
-	if isDelivered && tokenMatches {
-		var deliveredDTOs []types.DeliveredItemDTO
-		for _, item := range order.Items {
-			payloadText := ""
+	var deliveredDTOs []types.DeliveredItemDTO
+	for _, item := range order.Items {
+		payloadText := ""
+		if isDelivered && tokenMatches {
 			if item.InventoryItemID != nil {
 				var invItem model.InventoryItem
 				if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", *item.InventoryItemID).First(&invItem).Error; err == nil {
@@ -806,17 +836,17 @@ func (l *OrderLogic) GetOrderDetail(orderIDOrNo string, token string) (*types.Or
 			} else if item.DeliveredPayload != "" {
 				payloadText = item.DeliveredPayload
 			}
-
-			deliveredDTOs = append(deliveredDTOs, types.DeliveredItemDTO{
-				ProductTitle: item.ProductTitle,
-				ProductSlug:  item.ProductSlug,
-				DeliveryType: string(item.DeliveryType),
-				Payload:      payloadText,
-				Instructions: item.Instructions,
-			})
 		}
-		resp.DeliveredItems = deliveredDTOs
+
+		deliveredDTOs = append(deliveredDTOs, types.DeliveredItemDTO{
+			ProductTitle: item.ProductTitle,
+			ProductSlug:  item.ProductSlug,
+			DeliveryType: string(item.DeliveryType),
+			Payload:      payloadText,
+			Instructions: item.Instructions,
+		})
 	}
+	resp.DeliveredItems = deliveredDTOs
 
 	return resp, nil
 }
@@ -852,3 +882,315 @@ func (l *OrderLogic) SubmitTwoFactor(orderIDOrNo string, token string, code stri
 
 	return nil
 }
+
+// CheckCartStock inspects real-time stock availability for a list of cart items before payment
+func (l *OrderLogic) CheckCartStock(req *types.CheckCartStockRequest) (*types.CheckCartStockResponse, error) {
+	resp := &types.CheckCartStockResponse{
+		AllInStock:      true,
+		OutOfStockItems: make([]types.OutOfStockItemDTO, 0),
+	}
+
+	for _, it := range req.Items {
+		prodUUID, err := uuid.Parse(it.ProductID)
+		if err != nil {
+			continue
+		}
+		var prod model.Product
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", prodUUID).First(&prod).Error; err != nil {
+			resp.AllInStock = false
+			resp.OutOfStockItems = append(resp.OutOfStockItems, types.OutOfStockItemDTO{
+				ProductID:    it.ProductID,
+				ProductTitle: "محصول نامشخص",
+				Reason:       "محصول در کاتالوگ فروشگاه یافت نشد",
+			})
+			continue
+		}
+
+		if !prod.IsActive || prod.StockMode == "out_of_stock" {
+			resp.AllInStock = false
+			resp.OutOfStockItems = append(resp.OutOfStockItems, types.OutOfStockItemDTO{
+				ProductID:    it.ProductID,
+				ProductTitle: prod.TitleFA,
+				Reason:       "این محصول در حال حاضر غیرفعال یا ناموجود است",
+			})
+			continue
+		}
+
+		if prod.StockMode == "always_in_stock" {
+			continue
+		}
+
+		if prod.StockMode == "manual" {
+			if prod.ManualStock < it.Quantity {
+				resp.AllInStock = false
+				resp.OutOfStockItems = append(resp.OutOfStockItems, types.OutOfStockItemDTO{
+					ProductID:    it.ProductID,
+					ProductTitle: prod.TitleFA,
+					Reason:       fmt.Sprintf("موجودی ناکافی (موجودی فعلی: %d عدد)", prod.ManualStock),
+				})
+			}
+			continue
+		}
+
+		// Instant delivery checks
+		if prod.DeliveryType == model.DeliveryInstant {
+			isThirdPartyBot := (prod.ExternalProductID > 0 || prod.ExternalProductIDStr != "") &&
+				(prod.DeliveryStrategy == "third_party_instant" || (prod.ExternalProvider != "" && prod.ExternalProvider != "manual_vault"))
+			if isThirdPartyBot {
+				if prod.ManualStock <= 0 {
+					providerKey := prod.ExternalProvider
+					if providerKey == "" || providerKey == "third_party_api" {
+						providerKey = fulfillment.ProviderInsightX
+					}
+					var settings []model.SystemSetting
+					_ = l.svcCtx.DB.WithContext(l.ctx).Where("category IN (?, ?)", "bot_providers", "insightx").Find(&settings).Error
+					configMap := make(map[string]string)
+					for _, s := range settings {
+						configMap[s.Key] = s.Value
+					}
+					apiKey := configMap["provider_"+providerKey+"_api_key"]
+					if apiKey == "" {
+						apiKey = configMap["insightx_api_key"]
+					}
+					baseURL := configMap["provider_"+providerKey+"_base_url"]
+					if apiKey != "" {
+						botCfg := fulfillment.ProviderConfig{
+							Key:     providerKey,
+							APIKey:  apiKey,
+							BaseURL: baseURL,
+						}
+						items, err := l.svcCtx.FulfillmentManager.GetCatalog(providerKey, botCfg, false)
+						if err == nil {
+							found := false
+							inStock := false
+							for _, bi := range items {
+								if (prod.ExternalProductIDStr != "" && bi.ID == prod.ExternalProductIDStr) || (prod.ExternalProductID > 0 && bi.NumericID == prod.ExternalProductID) {
+									found = true
+									inStock = bi.InStock || bi.Unlimited || bi.Stock >= int64(it.Quantity)
+									break
+								}
+							}
+							if found && !inStock {
+								resp.AllInStock = false
+								resp.OutOfStockItems = append(resp.OutOfStockItems, types.OutOfStockItemDTO{
+									ProductID:    it.ProductID,
+									ProductTitle: prod.TitleFA,
+									Reason:       "موجودی این سرویس در انبار ربات به اتمام رسیده است",
+								})
+							}
+						}
+					}
+				}
+			} else {
+				var count int64
+				l.svcCtx.DB.WithContext(l.ctx).Model(&model.InventoryItem{}).
+					Where("product_id = ? AND status = ?", prod.ID, model.InventoryAvailable).
+					Count(&count)
+				if count < int64(it.Quantity) {
+					resp.AllInStock = false
+					resp.OutOfStockItems = append(resp.OutOfStockItems, types.OutOfStockItemDTO{
+						ProductID:    it.ProductID,
+						ProductTitle: prod.TitleFA,
+						Reason:       "کلیدهای آماده در مخزن انبار برای این تعداد کافی نیست",
+					})
+				}
+			}
+		}
+	}
+
+	return resp, nil
+}
+
+// VerifyPayPingCallback processes PayPing gateway return callbacks
+func (l *OrderLogic) VerifyPayPingCallback(req *types.PayPingCallbackRequest) (*types.OrderDetailResponse, string, error) {
+	var order model.Order
+	query := l.svcCtx.DB.WithContext(l.ctx).Preload("Items")
+
+	if req.ClientRefID != "" {
+		query = query.Where("order_number = ?", req.ClientRefID)
+	} else if req.Code != "" {
+		query = query.Where("payment_authority = ?", req.Code)
+	} else {
+		return nil, "", fmt.Errorf("شناسه پیگیری یا کد تراکنش ارائه نشده است")
+	}
+
+	if err := query.First(&order).Error; err != nil {
+		return nil, "", fmt.Errorf("سفارش مربوط به این تراکنش یافت نشد")
+	}
+
+	// If order already paid/completed, return idempotently
+	if order.Status == model.OrderPaid || order.Status == model.OrderCompleted {
+		detail, err := l.GetOrderDetail(order.OrderNumber, order.AccessToken)
+		return detail, order.OrderNumber, err
+	}
+
+	// Handle cancellation or user exiting payment page
+	isCancelled := strings.EqualFold(req.Status, "cancelled") || strings.EqualFold(req.Status, "failed") || req.RefID == "" || req.RefID == "0"
+	if isCancelled {
+		now := time.Now()
+		order.Status = model.OrderCancelled
+		_ = l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error
+
+		_ = audit.RecordTransaction(l.ctx, l.svcCtx.DB.WithContext(l.ctx), &model.Transaction{
+			OrderID:         &order.ID,
+			OrderType:       model.TxTypeStoreOrder,
+			CustomerPhone:   order.CustomerPhone,
+			CustomerEmail:   order.CustomerEmail,
+			AmountToman:     order.TotalAmountToman,
+			PaymentPlatform: model.PlatformPayPing,
+			Status:          model.TxStatusCancelled,
+			Description:     fmt.Sprintf("تراکنش پی‌پینگ برای سفارش #%s توسط کاربر لغو گردید", order.OrderNumber),
+			CreatedAt:       now,
+		})
+
+		detail, _ := l.GetOrderDetail(order.OrderNumber, order.AccessToken)
+		return detail, order.OrderNumber, fmt.Errorf("پرداخت لغو شد یا بازگشت ناموفق بود")
+	}
+
+	// Retrieve PayPing Token
+	var paypingGW model.Payment
+	token := ""
+	if err := l.svcCtx.DB.WithContext(l.ctx).Where("platform = ?", model.PlatformPayPing).First(&paypingGW).Error; err == nil {
+		var cfg map[string]interface{}
+		_ = json.Unmarshal([]byte(paypingGW.Config), &cfg)
+		if t, ok := cfg["token"].(string); ok {
+			token = t
+		}
+	}
+
+	// Verify with PayPing API
+	verifyRes, verifyErr := l.svcCtx.PayPingClient.VerifyPayment(l.ctx, token, payment.PayPingVerifyRequest{
+		Amount: order.TotalAmountToman,
+		RefId:  req.RefID,
+	})
+
+	now := time.Now()
+	if verifyErr != nil {
+		order.Status = model.OrderCancelled
+		_ = l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error
+		detail, _ := l.GetOrderDetail(order.OrderNumber, order.AccessToken)
+		return detail, order.OrderNumber, fmt.Errorf("اعتبارسنجی تراکنش در درگاه پی‌پینگ تایید نشد: %v", verifyErr)
+	}
+
+	// Mark order as paid
+	order.Status = model.OrderPaid
+	order.PaidAt = &now
+	order.PaymentRefID = req.RefID
+	if verifyRes != nil && verifyRes.CardNumber != "" {
+		order.OperatorNotes = fmt.Sprintf("کارت پرداخت: %s", verifyRes.CardNumber)
+	}
+
+	// Attempt instant fulfillment for bot or local stock items
+	allDelivered := true
+	for i := range order.Items {
+		item := &order.Items[i]
+		if item.DeliveredPayload != "" {
+			continue
+		}
+
+		var prod model.Product
+		if err := l.svcCtx.DB.WithContext(l.ctx).Where("id = ?", item.ProductID).First(&prod).Error; err == nil {
+			if prod.DeliveryType == model.DeliveryInstant && (prod.ExternalProductID > 0 || prod.ExternalProductIDStr != "") {
+				providerKey := prod.ExternalProvider
+				if providerKey == "" || providerKey == "third_party_api" {
+					providerKey = fulfillment.ProviderInsightX
+				}
+
+				var settings []model.SystemSetting
+				_ = l.svcCtx.DB.WithContext(l.ctx).Where("category IN (?, ?)", "bot_providers", "insightx").Find(&settings).Error
+				configMap := make(map[string]string)
+				for _, s := range settings {
+					configMap[s.Key] = s.Value
+				}
+				apiKey := configMap["provider_"+providerKey+"_api_key"]
+				if apiKey == "" {
+					apiKey = configMap["insightx_api_key"]
+				}
+				baseURL := configMap["provider_"+providerKey+"_base_url"]
+
+				if apiKey != "" {
+					prodIDStr := prod.ExternalProductIDStr
+					if prodIDStr == "" && prod.ExternalProductID > 0 {
+						prodIDStr = strconv.FormatInt(prod.ExternalProductID, 10)
+					}
+					botReq := fulfillment.ProviderOrderRequest{
+						ProductID:        prodIDStr,
+						NumericID:        prod.ExternalProductID,
+						Quantity:         item.Quantity,
+						IdempotencyKey:   fmt.Sprintf("%s_%s", order.ID.String(), item.ID.String()),
+						CustomerEmail:    order.CustomerEmail,
+						CustomerPassword: "",
+					}
+					botCfg := fulfillment.ProviderConfig{
+						Key:     providerKey,
+						APIKey:  apiKey,
+						BaseURL: baseURL,
+					}
+					orderRes, oErr := l.svcCtx.FulfillmentManager.CreateOrder(providerKey, botCfg, botReq)
+					if oErr == nil && orderRes != nil && orderRes.Success {
+						item.DeliveredPayload = orderRes.DeliveredPayload
+						if orderRes.PayloadType != "" {
+							item.DeliveredPayloadType = orderRes.PayloadType
+						}
+						item.ExternalOrderID = orderRes.OrderID
+						if orderRes.Instructions != "" {
+							item.Instructions = orderRes.Instructions
+						}
+						_ = l.svcCtx.DB.WithContext(l.ctx).Save(item).Error
+					}
+				}
+			}
+		}
+
+		if item.DeliveredPayload == "" {
+			allDelivered = false
+		}
+	}
+
+	if allDelivered && len(order.Items) > 0 {
+		order.Status = model.OrderCompleted
+		order.CompletedAt = &now
+	} else {
+		order.Status = model.OrderInQueue
+	}
+
+	_ = l.svcCtx.DB.WithContext(l.ctx).Save(&order).Error
+
+	// Financial transaction log
+	_ = audit.RecordTransaction(l.ctx, l.svcCtx.DB.WithContext(l.ctx), &model.Transaction{
+		OrderID:         &order.ID,
+		OrderType:       model.TxTypeStoreOrder,
+		CustomerPhone:   order.CustomerPhone,
+		CustomerEmail:   order.CustomerEmail,
+		AmountToman:     order.TotalAmountToman,
+		PaymentPlatform: model.PlatformPayPing,
+		PaymentRefID:    order.PaymentRefID,
+		Status:          model.TxStatusSuccess,
+		Description:     fmt.Sprintf("پرداخت موفق درگاه پی‌پینگ برای سفارش #%s", order.OrderNumber),
+		CreatedAt:       now,
+	})
+
+	// Recalculate customer loyalty tier
+	if order.CustomerPhone != "" {
+		go func(phone string) {
+			_ = loyalty.RecalculateByPhone(context.Background(), l.svcCtx.DB, phone)
+		}(order.CustomerPhone)
+	}
+
+	// Dispatch SMS notification upon instant delivery & completion
+	if order.Status == model.OrderCompleted && order.CustomerPhone != "" {
+		payload := ""
+		if len(order.Items) > 0 {
+			payload = order.Items[0].DeliveredPayload
+			if payload == "" {
+				payload = order.Items[0].ProductTitle
+			}
+		}
+		notifier := notification.NewSMSPatternNotifier(l.svcCtx)
+		notifier.SendOrderCompletedAsync(order.CustomerPhone, order.OrderNumber, payload)
+	}
+
+	detail, _ := l.GetOrderDetail(order.OrderNumber, order.AccessToken)
+	return detail, order.OrderNumber, nil
+}
+

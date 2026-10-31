@@ -255,6 +255,26 @@ func seedInitialData(db *gorm.DB) {
 	// Always ensure CardToCard is disabled as requested by admin
 	db.Model(&model.Payment{}).Where("platform = ?", model.PlatformCardToCard).Update("enable", false)
 
+	// Ensure PayPing official gateway exists in database
+	var paypingCount int64
+	db.Model(&model.Payment{}).Where("platform = ?", model.PlatformPayPing).Count(&paypingCount)
+	if paypingCount == 0 {
+		paypingGateway := model.Payment{
+			Id:          4,
+			Name:        "PayPing",
+			NameFA:      "درگاه پرداخت اینترنتی پی‌پینگ (کارت‌های شتاب)",
+			Platform:    model.PlatformPayPing,
+			Icon:        "payping",
+			Description: "پرداخت سریع و ایمن عضو شبکه شاپرک با کلیه کارت‌های بانکی",
+			Config:      `{"token":"","sandbox":false}`,
+			Enable:      true,
+			DisplayMode: "active",
+			Sort:        1,
+		}
+		db.Create(&paypingGateway)
+		log.Println("🌱 Seeded PayPing payment gateway")
+	}
+
 	// Seed System Settings (SMS Gateway & Notification configurations in DB)
 	smsTemplateDefaults := []model.SystemSetting{
 		{

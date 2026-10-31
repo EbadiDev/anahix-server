@@ -42,6 +42,7 @@ type Transaction struct {
 	PaymentPlatform   PaymentPlatform   `gorm:"size:32;not null;index" json:"payment_platform"`
 	PaymentRefID      string            `gorm:"size:120" json:"payment_ref_id,omitempty"`
 	PaymentAuthority  string            `gorm:"size:120;index" json:"payment_authority,omitempty"`
+	ExternalProvider  string            `gorm:"size:50" json:"external_provider,omitempty"`
 	Status            TransactionStatus `gorm:"size:24;not null;default:'SUCCESS';index" json:"status"`
 	Description       string            `gorm:"type:text" json:"description"`
 	Metadata          string            `gorm:"type:text;default:'{}'" json:"metadata"` // JSON metadata

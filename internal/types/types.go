@@ -144,6 +144,30 @@ type CartItemInput struct {
 	Quantity  int    `json:"quantity"`
 }
 
+type CheckCartStockRequest struct {
+	Items []CartItemInput `json:"items" binding:"required"`
+}
+
+type OutOfStockItemDTO struct {
+	ProductID    string `json:"product_id"`
+	ProductTitle string `json:"product_title"`
+	Reason       string `json:"reason"`
+}
+
+type CheckCartStockResponse struct {
+	AllInStock      bool                `json:"all_in_stock"`
+	OutOfStockItems []OutOfStockItemDTO `json:"out_of_stock_items"`
+}
+
+type PayPingCallbackRequest struct {
+	Code        string `json:"code" form:"code"`
+	RefID       string `json:"refid" form:"refid"`
+	ClientRefID string `json:"clientrefid" form:"clientrefid"`
+	CardNumber  string `json:"cardnumber" form:"cardnumber"`
+	CardHashPan string `json:"cardhashpan" form:"cardhashpan"`
+	Status      string `json:"status" form:"status"`
+}
+
 type CreateOrderRequest struct {
 	ProductID     string          `json:"product_id"`
 	PlanID        string          `json:"plan_id,omitempty"`
@@ -490,6 +514,12 @@ type TestBotProviderConnectionResponse struct {
 	BalanceUSD   float64 `json:"balance_usd"`
 	BalanceToman int64   `json:"balance_toman"`
 	Message      string  `json:"message"`
+}
+
+type SyncInventoryResponse struct {
+	Success             bool   `json:"success"`
+	SyncedProductsCount int    `json:"synced_products_count"`
+	Message             string `json:"message"`
 }
 
 type ImportBotProductRequest struct {

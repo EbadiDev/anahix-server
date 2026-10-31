@@ -2,7 +2,10 @@ package public
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/public"
@@ -67,6 +70,53 @@ func (h *PublicHandler) CreateOrder(c *gin.Context) {
 	l := public.NewOrderLogic(c.Request.Context(), h.svcCtx)
 	resp, err := l.CreateOrder(&req)
 	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) CheckCartStock(c *gin.Context) {
+	var req types.CheckCartStockRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		result.ParamErrorResult(c, err)
+		return
+	}
+
+	l := public.NewOrderLogic(c.Request.Context(), h.svcCtx)
+	resp, err := l.CheckCartStock(&req)
+	result.HttpResult(c, resp, err)
+}
+
+func (h *PublicHandler) VerifyPayPingCallback(c *gin.Context) {
+	var req types.PayPingCallbackRequest
+	_ = c.ShouldBindQuery(&req)
+	_ = c.ShouldBind(&req)
+
+	if req.Code == "" {
+		req.Code = c.Query("code")
+	}
+	if req.RefID == "" {
+		req.RefID = c.Query("refid")
+	}
+	if req.ClientRefID == "" {
+		req.ClientRefID = c.Query("clientrefid")
+	}
+	if req.ClientRefID == "" {
+		req.ClientRefID = c.Query("order_no")
+	}
+
+	l := public.NewOrderLogic(c.Request.Context(), h.svcCtx)
+	detail, orderNo, err := l.VerifyPayPingCallback(&req)
+
+	// If browser redirect request, send directly to /track page
+	isJSON := strings.Contains(c.GetHeader("Accept"), "application/json") || c.Query("format") == "json"
+	if !isJSON {
+		if err != nil {
+			c.Redirect(http.StatusFound, fmt.Sprintf("/track?order_no=%s&payment_status=failed&msg=%s", orderNo, url.QueryEscape(err.Error())))
+			return
+		}
+		c.Redirect(http.StatusFound, fmt.Sprintf("/track?order_no=%s&payment_status=success", orderNo))
+		return
+	}
+
+	result.HttpResult(c, detail, err)
 }
 
 func (h *PublicHandler) GetOrderDetail(c *gin.Context) {

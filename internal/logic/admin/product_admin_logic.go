@@ -43,7 +43,9 @@ func (l *ProductAdminLogic) ListProducts() ([]model.Product, error) {
 		} else if products[i].StockMode == "out_of_stock" {
 			stock = 0
 		} else if products[i].DeliveryType == model.DeliveryInstant {
-			if products[i].ExternalProvider != "" || products[i].DeliveryStrategy == "third_party_instant" {
+			isThirdPartyBot := (products[i].ExternalProductID > 0 || products[i].ExternalProductIDStr != "") &&
+				(products[i].DeliveryStrategy == "third_party_instant" || (products[i].ExternalProvider != "" && products[i].ExternalProvider != "manual_vault"))
+			if isThirdPartyBot {
 				stock = int64(products[i].ManualStock)
 			} else {
 				l.svcCtx.DB.WithContext(l.ctx).
@@ -93,7 +95,9 @@ func (l *ProductAdminLogic) GetProduct(prodID uuid.UUID) (*model.Product, error)
 	} else if p.StockMode == "out_of_stock" {
 		stock = 0
 	} else if p.DeliveryType == model.DeliveryInstant {
-		if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+		isThirdPartyBot := (p.ExternalProductID > 0 || p.ExternalProductIDStr != "") &&
+			(p.DeliveryStrategy == "third_party_instant" || (p.ExternalProvider != "" && p.ExternalProvider != "manual_vault"))
+		if isThirdPartyBot {
 			stock = int64(p.ManualStock)
 		} else {
 			l.svcCtx.DB.WithContext(l.ctx).

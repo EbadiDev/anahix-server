@@ -11,6 +11,7 @@ type PaymentPlatform string
 const (
 	PlatformBalance    PaymentPlatform = "balance"      // Default wallet balance payment
 	PlatformZarinpal   PaymentPlatform = "zarinpal"     // ZarinPal Iranian PSP
+	PlatformPayPing    PaymentPlatform = "payping"      // PayPing official payment gateway
 	PlatformCardToCard PaymentPlatform = "card_to_card" // Manual bank transfer with receipt
 	PlatformCrypto     PaymentPlatform = "crypto"       // USDT / TRX / TON
 )

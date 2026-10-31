@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/EbadiDev/anahix-server/internal/logic/provider/fulfillment"
@@ -309,6 +310,20 @@ func (l *DeliveryEngineLogic) UpdateGroupDeliveryStrategy(req *types.UpdateGroup
 		Where("group_tag = ?", req.GroupTag).
 		Updates(map[string]interface{}{
 			"delivery_strategy": req.DeliveryStrategy,
+		}).Error
+}
+
+func (l *DeliveryEngineLogic) DeleteProductGroup(groupTag string) error {
+	groupTag = strings.TrimSpace(groupTag)
+	if groupTag == "" || groupTag == "general" {
+		return fmt.Errorf("امکان حذف گروه عمومی سیستم وجود ندارد")
+	}
+
+	return l.svcCtx.DB.WithContext(l.ctx).Model(&model.Product{}).
+		Where("group_tag = ?", groupTag).
+		Updates(map[string]interface{}{
+			"group_tag":      "general",
+			"group_title_fa": "سرویس‌های دیجیتال عمومی",
 		}).Error
 }
 
@@ -849,4 +864,101 @@ func (l *DeliveryEngineLogic) DeleteStoreCategory(id string) error {
 		return xerr.NewErrCode(xerr.InvalidParams)
 	}
 	return l.svcCtx.DB.WithContext(l.ctx).Where("id = ? OR parent_id = ?", catUUID, catUUID).Delete(&model.StoreCategory{}).Error
+}
+
+func (l *DeliveryEngineLogic) SyncInventoryWithBots() (*types.SyncInventoryResponse, error) {
+	var products []model.Product
+	err := l.svcCtx.DB.WithContext(l.ctx).
+		Where("(delivery_strategy = ? OR (external_provider != ? AND external_provider != ?)) AND (external_product_id > 0 OR external_product_id_str != ?)",
+			"third_party_instant", "", "manual_vault", "").
+		Find(&products).Error
+	if err != nil {
+		return nil, xerr.NewErrCode(xerr.DatabaseError)
+	}
+
+	syncedCount := 0
+	providerMap := make(map[string][]model.Product)
+	for _, p := range products {
+		key := p.ExternalProvider
+		if key == "" || key == "third_party_api" {
+			key = fulfillment.ProviderInsightX
+		}
+		providerMap[key] = append(providerMap[key], p)
+	}
+
+	var settings []model.SystemSetting
+	_ = l.svcCtx.DB.WithContext(l.ctx).Where("category IN (?, ?)", "bot_providers", "insightx").Find(&settings).Error
+	settingMap := make(map[string]string)
+	for _, s := range settings {
+		settingMap[s.Key] = s.Value
+	}
+
+	for provKey, prods := range providerMap {
+		apiKey := settingMap["provider_"+provKey+"_api_key"]
+		if apiKey == "" && provKey == fulfillment.ProviderInsightX {
+			apiKey = settingMap["insightx_api_key"]
+		}
+		baseURL := settingMap["provider_"+provKey+"_base_url"]
+		if apiKey == "" {
+			continue
+		}
+
+		botCfg := fulfillment.ProviderConfig{
+			Key:     provKey,
+			APIKey:  apiKey,
+			BaseURL: baseURL,
+		}
+
+		catalogItems, catErr := l.svcCtx.FulfillmentManager.GetCatalog(provKey, botCfg, true)
+		if catErr != nil {
+			continue
+		}
+
+		for _, prod := range prods {
+			for _, item := range catalogItems {
+				isMatch := (prod.ExternalProductIDStr != "" && item.ID == prod.ExternalProductIDStr) ||
+					(prod.ExternalProductID > 0 && item.NumericID == prod.ExternalProductID)
+				if isMatch {
+					stock := int(item.Stock)
+					stockMode := prod.StockMode
+					if item.Unlimited {
+						stockMode = "always_in_stock"
+						stock = 999
+					} else if !item.InStock || item.Stock <= 0 {
+						stockMode = "out_of_stock"
+						stock = 0
+					} else {
+						if stockMode == "out_of_stock" {
+							stockMode = "auto"
+						}
+					}
+
+					updates := map[string]interface{}{
+						"manual_stock": stock,
+						"stock_mode":   stockMode,
+						"updated_at":   time.Now(),
+					}
+					if item.PriceUSD > 0 {
+						updates["base_cost_usd"] = item.PriceUSD
+					}
+					if item.RequiredInput != "" {
+						updates["required_customer_input"] = item.RequiredInput
+					}
+					if item.DeliveredPayloadType != "" {
+						updates["delivered_payload_type"] = item.DeliveredPayloadType
+					}
+
+					_ = l.svcCtx.DB.WithContext(l.ctx).Model(&prod).Updates(updates).Error
+					syncedCount++
+					break
+				}
+			}
+		}
+	}
+
+	return &types.SyncInventoryResponse{
+		Success:             true,
+		SyncedProductsCount: syncedCount,
+		Message:             fmt.Sprintf("موجودی %d محصول با ربات‌های بالادستی همگام شد", syncedCount),
+	}, nil
 }

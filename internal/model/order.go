@@ -36,6 +36,7 @@ type PaymentMethod string
 const (
 	PaymentMethodBalance    PaymentMethod = "balance"      // Default wallet balance
 	PaymentMethodZarinpal   PaymentMethod = "zarinpal"     // Zarinpal gateway
+	PaymentMethodPayping    PaymentMethod = "payping"      // PayPing gateway
 	PaymentMethodCardToCard PaymentMethod = "card_to_card" // Manual card to card transfer
 	PaymentMethodCrypto     PaymentMethod = "crypto"       // USDT / TRX crypto
 )

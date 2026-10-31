@@ -74,7 +74,9 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 		} else if p.StockMode == "out_of_stock" {
 			availableStock = 0
 		} else if p.DeliveryType == model.DeliveryInstant {
-			if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+			isThirdPartyBot := (p.ExternalProductID > 0 || p.ExternalProductIDStr != "") &&
+				(p.DeliveryStrategy == "third_party_instant" || (p.ExternalProvider != "" && p.ExternalProvider != "manual_vault"))
+			if isThirdPartyBot {
 				availableStock = int64(p.ManualStock)
 			} else {
 				availableStock = stockMap[p.ID]
@@ -164,7 +166,9 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	} else if p.StockMode == "out_of_stock" {
 		availableStock = 0
 	} else if p.DeliveryType == model.DeliveryInstant {
-		if p.ExternalProvider != "" || p.DeliveryStrategy == "third_party_instant" {
+		isThirdPartyBot := (p.ExternalProductID > 0 || p.ExternalProductIDStr != "") &&
+			(p.DeliveryStrategy == "third_party_instant" || (p.ExternalProvider != "" && p.ExternalProvider != "manual_vault"))
+		if isThirdPartyBot {
 			availableStock = int64(p.ManualStock)
 		} else {
 			l.svcCtx.DB.WithContext(l.ctx).
@@ -190,16 +194,13 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 		features = defaultFeaturesForProduct(&p)
 	}
 
-	// 2. Plans / Variants
+	// 2. Plans / Variants - Only return plans configured in database (never synthesize fake variants)
 	var plans []types.ProductPlan
 	if p.PlansJSON != "" {
 		_ = json.Unmarshal([]byte(p.PlansJSON), &plans)
 	}
-	if len(plans) == 0 {
-		plans = defaultPlansForProduct(&p)
-	}
 
-	// 3. Comparison Table
+	// 3. Comparison Table - Only return if configured by admin
 	var comparison *types.ProductComparison
 	if p.ComparisonJSON != "" {
 		var comp types.ProductComparison
@@ -207,26 +208,17 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 			comparison = &comp
 		}
 	}
-	if comparison == nil {
-		comparison = defaultComparisonForProduct(&p)
-	}
 
-	// 4. Activation Guide
+	// 4. Activation Guide - Only return if configured by admin
 	var guide []types.ActivationStep
 	if p.GuideJSON != "" {
 		_ = json.Unmarshal([]byte(p.GuideJSON), &guide)
 	}
-	if len(guide) == 0 {
-		guide = defaultGuideForProduct(&p)
-	}
 
-	// 5. FAQs
+	// 5. FAQs - Only return if configured by admin
 	var faqs []types.ProductFAQ
 	if p.FaqJSON != "" {
 		_ = json.Unmarshal([]byte(p.FaqJSON), &faqs)
-	}
-	if len(faqs) == 0 {
-		faqs = defaultFaqsForProduct(&p)
 	}
 
 	// 6. SEO
@@ -355,7 +347,10 @@ func defaultPlansForProduct(p *model.Product) []types.ProductPlan {
 	if basePrice <= 0 {
 		basePrice = 1500000
 	}
-	originalBase := int64(float64(basePrice) * 1.18 / 10000) * 10000
+	originalBase := p.OriginalPriceToman
+	if originalBase <= basePrice {
+		originalBase = basePrice
+	}
 
 	threeMonthPrice := int64(float64(basePrice)*2.8/10000) * 10000
 	threeMonthOrig := int64(float64(basePrice)*3.4/10000) * 10000

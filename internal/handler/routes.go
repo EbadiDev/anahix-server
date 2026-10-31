@@ -83,6 +83,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 		orders := api.Group("/orders")
 		{
 			orders.POST("", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.CreateOrder)
+			orders.POST("/check-stock", pubHandler.CheckCartStock)
 			orders.GET("/:order_id", pubHandler.GetOrderDetail)
 			orders.POST("/:order_id/2fa", pubHandler.SubmitTwoFactor)
 			orders.GET("/:order_id/invoice", middleware.CustomerOptionalAuthMiddleware(svcCtx.Config.JWT.AccessSecret), pubHandler.GetOrderInvoice)
@@ -91,8 +92,14 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 
 		payments := api.Group("/payments")
 		{
-		 payments.GET("", pubHandler.ListPaymentMethods)
+			payments.GET("", pubHandler.ListPaymentMethods)
+			payments.GET("/verify/payping", pubHandler.VerifyPayPingCallback)
+			payments.POST("/verify/payping", pubHandler.VerifyPayPingCallback)
 		}
+
+		// Direct top-level IPG redirect callbacks
+		r.GET("/payment/callback/payping", pubHandler.VerifyPayPingCallback)
+		r.POST("/payment/callback/payping", pubHandler.VerifyPayPingCallback)
 
 		// System Announcements & Stock Alerts
 		api.GET("/announcements", pubHandler.ListAnnouncements)
@@ -296,6 +303,7 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.GET("/delivery/provider-catalog", admHandler.ListProviderCatalog)
 				protected.GET("/delivery/groups", admHandler.ListProductGroups)
 				protected.POST("/delivery/groups/strategy", admHandler.UpdateGroupDeliveryStrategy)
+				protected.DELETE("/delivery/groups/:group_tag", admHandler.DeleteProductGroup)
 				protected.POST("/delivery/products/link", admHandler.LinkProductProvider)
 
 				// Multi-Bot Providers & Fulfillment Hub
@@ -304,6 +312,8 @@ func RegisterRoutes(r *gin.Engine, svcCtx *svc.ServiceContext) {
 				protected.POST("/providers/test", admHandler.TestBotProviderConnection)
 				protected.GET("/providers/catalog", admHandler.GetBotCatalog)
 				protected.POST("/providers/import", admHandler.ImportBotProduct)
+				protected.POST("/providers/sync-inventory", admHandler.SyncInventoryWithBots)
+				protected.POST("/delivery/sync-inventory", admHandler.SyncInventoryWithBots)
 
 				// Hierarchical Store Categories Management
 				protected.GET("/store/categories", admHandler.ListStoreCategories)

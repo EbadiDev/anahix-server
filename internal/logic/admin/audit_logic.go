@@ -62,6 +62,34 @@ func (l *AuditLogic) ListTransactions(page, pageSize int, search, status, orderT
 		items = []model.Transaction{}
 	}
 
+	// Populate external provider from order items if not already set
+	orderIDs := make([]uuid.UUID, 0)
+	for _, it := range items {
+		if it.OrderID != nil && *it.OrderID != uuid.Nil && it.ExternalProvider == "" {
+			orderIDs = append(orderIDs, *it.OrderID)
+		}
+	}
+	if len(orderIDs) > 0 {
+		var orderItems []model.OrderItem
+		_ = l.svcCtx.DB.WithContext(l.ctx).
+			Select("order_id, external_provider").
+			Where("order_id IN (?)", orderIDs).
+			Find(&orderItems).Error
+		providerMap := make(map[uuid.UUID]string)
+		for _, oi := range orderItems {
+			if oi.ExternalProvider != "" && oi.ExternalProvider != "manual_vault" {
+				providerMap[oi.OrderID] = oi.ExternalProvider
+			}
+		}
+		for i := range items {
+			if items[i].OrderID != nil && items[i].ExternalProvider == "" {
+				if prov, ok := providerMap[*items[i].OrderID]; ok {
+					items[i].ExternalProvider = prov
+				}
+			}
+		}
+	}
+
 	return &types.TransactionListResponse{
 		Total: total,
 		Items: items,
