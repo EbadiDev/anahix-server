@@ -32,10 +32,12 @@ type Product struct {
 	Description    string          `gorm:"type:text" json:"description"`
 	Category       ProductCategory `gorm:"size:50;not null;index" json:"category"`
 	DeliveryType   DeliveryType    `gorm:"size:30;not null;default:'instant'" json:"delivery_type"`
-	SLAMinMinutes  int             `gorm:"default:0" json:"sla_min_minutes"`
-	SLAMaxMinutes  int             `gorm:"default:0" json:"sla_max_minutes"`
-	SLADisplayText string          `gorm:"size:255" json:"sla_display_text"`
-	OperatingHours string          `gorm:"size:100;default:'09:00 - 23:00'" json:"operating_hours"`
+	SLAMinMinutes      int             `gorm:"default:0" json:"sla_min_minutes"`
+	SLAMaxMinutes      int             `gorm:"default:0" json:"sla_max_minutes"`
+	SLADisplayText     string          `gorm:"size:255" json:"sla_display_text"`
+	OperatingHours     string          `gorm:"size:100;default:'09:00 - 23:00'" json:"operating_hours"`
+	WarrantyText       string          `gorm:"size:255" json:"warranty_text"`
+	DeliveryMethodText string          `gorm:"size:255" json:"delivery_method_text"`
 
 	// Reseller pricing
 	BaseCostUSD float64 `gorm:"type:decimal(10,2);default:0" json:"base_cost_usd"`

@@ -120,6 +120,8 @@ func (l *CatalogLogic) ListProducts(search string) ([]types.ProductListItem, err
 			SLAMaxMinutes:       p.SLAMaxMinutes,
 			SLADisplayText:      p.SLADisplayText,
 			OperatingHours:      p.OperatingHours,
+			WarrantyText:        p.WarrantyText,
+			DeliveryMethodText:  p.DeliveryMethodText,
 			IconURL:             p.IconURL,
 			BannerURL:           p.BannerURL,
 			ImageURL:            p.ImageURL,
@@ -189,9 +191,6 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	var features []string
 	if p.FeaturesJSON != "" {
 		_ = json.Unmarshal([]byte(p.FeaturesJSON), &features)
-	}
-	if len(features) == 0 {
-		features = defaultFeaturesForProduct(&p)
 	}
 
 	// 2. Plans / Variants - Only return plans configured in database (never synthesize fake variants)
@@ -272,6 +271,8 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 			SLAMaxMinutes:       p.SLAMaxMinutes,
 			SLADisplayText:      p.SLADisplayText,
 			OperatingHours:      p.OperatingHours,
+			WarrantyText:        p.WarrantyText,
+			DeliveryMethodText:  p.DeliveryMethodText,
 			IconURL:             p.IconURL,
 			BannerURL:           p.BannerURL,
 			ImageURL:            p.ImageURL,
@@ -322,24 +323,6 @@ func (l *CatalogLogic) GetProductDetail(slug string) (*types.ProductDetail, erro
 	}
 
 	return detail, nil
-}
-
-func defaultFeaturesForProduct(p *model.Product) []string {
-	if p.DeliveryType == model.DeliveryInstant {
-		return []string{
-			"تحویل آنی بلافاصله پس از پرداخت",
-			"فعال‌سازی درجا و بدون نیاز به ارسال پسورد",
-			"تضمین ۱۰۰٪ اصالت لایسنس و عدم قطعی",
-			"پشتیبانی شبانه‌روزی آناهیکس",
-		}
-	}
-	return []string{
-		"فعال‌سازی مستقیم روی اکانت کاربری شخصی شما",
-		"حفظ کامل تاریخچه چت‌ها و اطلاعات قبلی",
-		"تبادل امن کد دو مرحله‌ای (2FA) در میز کار",
-		"پروتکل امنیتی پاکسازی کلمه عبور (Zeroize)",
-		"پرداخت قانونی با ویزا/مسترکارت بین‌المللی",
-	}
 }
 
 func defaultPlansForProduct(p *model.Product) []types.ProductPlan {

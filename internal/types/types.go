@@ -22,6 +22,8 @@ type ProductListItem struct {
 	SLAMaxMinutes       int      `json:"sla_max_minutes"`
 	SLADisplayText      string   `json:"sla_display_text"`
 	OperatingHours      string   `json:"operating_hours"`
+	WarrantyText        string   `json:"warranty_text,omitempty"`
+	DeliveryMethodText  string   `json:"delivery_method_text,omitempty"`
 	IconURL             string   `json:"icon_url"`
 	BannerURL           string   `json:"banner_url"`
 	ImageURL            string   `json:"image_url,omitempty"`
@@ -1396,6 +1398,8 @@ type AdminUpdateProductRequest struct {
 	SLAMaxMinutes       *int                   `json:"sla_max_minutes"`
 	SLADisplayText      *string                `json:"sla_display_text"`
 	OperatingHours      *string                `json:"operating_hours"`
+	WarrantyText        *string                `json:"warranty_text"`
+	DeliveryMethodText  *string                `json:"delivery_method_text"`
 	BaseCostUSD         *float64               `json:"base_cost_usd"`
 	PriceToman          *int64                 `json:"price_toman"`
 	OriginalPriceToman  *int64                 `json:"original_price_toman"`

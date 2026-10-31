@@ -154,6 +154,12 @@ func (l *ProductAdminLogic) UpdateProduct(prodID uuid.UUID, req *types.AdminUpda
 	if req.OperatingHours != nil {
 		existing.OperatingHours = *req.OperatingHours
 	}
+	if req.WarrantyText != nil {
+		existing.WarrantyText = *req.WarrantyText
+	}
+	if req.DeliveryMethodText != nil {
+		existing.DeliveryMethodText = *req.DeliveryMethodText
+	}
 	if req.BaseCostUSD != nil {
 		existing.BaseCostUSD = *req.BaseCostUSD
 	}
